@@ -38,6 +38,10 @@ public class Drivetrain {
         follower.setStartingPose(pose);
     }
 
+    public void setPose(Pose pose) {
+        follower.setPose(pose);
+    }
+
     public Pose getPose() {
         return follower.getPose();
     }

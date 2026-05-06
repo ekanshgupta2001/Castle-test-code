@@ -4,6 +4,7 @@ import static com.pedropathing.ivy.commands.Commands.instant;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.commands.Commands.waitUntil;
 import static com.pedropathing.ivy.groups.Groups.deadline;
+import static com.pedropathing.ivy.groups.Groups.race;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 
 import com.pedropathing.geometry.BezierLine;
@@ -20,6 +21,8 @@ import org.firstinspires.ftc.teamcode.subsystems.Pollen;
 public class Robot {
     public static double POLLEN_COLOR_VALUE_THRESHOLD = 0.3;
     public static long POLLEN_PIPELINE_WARMUP_MS = 250;
+    public static int APRILTAG_PIPELINE = 0;
+    public static long LOCALIZATION_TIMEOUT_MS = 1500;
 
     public final Drivetrain drivetrain;
     public final Limelight limelight;
@@ -71,5 +74,30 @@ public class Robot {
 
     private boolean pollenAtColorSensor() {
         return colorSensor.getValue() > POLLEN_COLOR_VALUE_THRESHOLD;
+    }
+
+    public boolean tryLocalizeFromAprilTag() {
+        if (limelight.getPipelineIndex() != APRILTAG_PIPELINE) {
+            limelight.switchPipeline(APRILTAG_PIPELINE);
+        }
+        limelight.update();
+        Pose botpose = limelight.getBotposeAsPedroPose();
+        if (botpose == null) return false;
+        drivetrain.setPose(botpose);
+        return true;
+    }
+
+    public Command localizeFromAprilTagCommand() {
+        return sequential(
+                instant(() -> limelight.switchPipeline(APRILTAG_PIPELINE)),
+                race(
+                        waitUntil(() -> limelight.getBotposeAsPedroPose() != null),
+                        waitMs(LOCALIZATION_TIMEOUT_MS)
+                ),
+                instant(() -> {
+                    Pose bp = limelight.getBotposeAsPedroPose();
+                    if (bp != null) drivetrain.setPose(bp);
+                })
+        );
     }
 }
