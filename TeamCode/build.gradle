@@ -21,8 +21,16 @@ android {
     packagingOptions {
         jniLibs.useLegacyPackaging true
     }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 dependencies {
     implementation project(':FtcRobotController')
+
+    // Local JVM unit tests for hardware-free logic (drive curves, vision geometry, colour math).
+    // Run with: ./gradlew :TeamCode:test   -- no robot required.
+    testImplementation 'junit:junit:4.13.2'
 }

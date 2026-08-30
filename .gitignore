@@ -79,3 +79,11 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Team-authored Markdown
+# ----------------------
+# Local-only documentation. Deliberately scoped to the files we wrote rather than a blanket
+# "*.md", so the upstream FTC SDK docs (README.md, .github/*.md, the sample readmes) stay
+# tracked — a blanket rule would also hide any new vendor docs that arrive with an SDK update.
+/CLAUDE.md
+/docs/

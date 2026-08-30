@@ -2,21 +2,39 @@ package org.firstinspires.ftc.teamcode.util;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+/**
+ * Init-phase menu for choosing alliance and starting position.
+ *
+ * <p>Relies on the SDK's {@code *WasPressed()} one-shots, which latch on the rising edge and clear
+ * when read. That makes them rate-independent — but it also means they must be read <em>every</em>
+ * loop. See {@link #poll}.
+ */
 public class AutoSelector {
     private Alliance alliance = Alliance.RED;
     private StartPosition start = StartPosition.LEFT;
     private boolean confirmed = false;
 
     public void poll(Gamepad gamepad) {
+        // Read every edge unconditionally, even when confirmed. Returning early instead would leave
+        // presses latched in the gamepad; they would all fire at once on the next unlock(), flipping
+        // the alliance and re-confirming before the user could touch anything.
+        boolean left = gamepad.dpadLeftWasPressed();
+        boolean right = gamepad.dpadRightWasPressed();
+        boolean up = gamepad.dpadUpWasPressed();
+        boolean down = gamepad.dpadDownWasPressed();
+        boolean confirm = gamepad.aWasPressed();
+
         if (confirmed) return;
 
-        if (gamepad.dpadLeftWasPressed() || gamepad.dpadRightWasPressed()) {
+        if (left || right) {
             alliance = alliance.opposite();
         }
-        if (gamepad.dpadUpWasPressed() || gamepad.dpadDownWasPressed()) {
-            start = cycle(start);
+        if (up) {
+            start = cycle(start, 1);
+        } else if (down) {
+            start = cycle(start, -1);
         }
-        if (gamepad.aWasPressed()) {
+        if (confirm) {
             confirmed = true;
         }
     }
@@ -40,14 +58,16 @@ public class AutoSelector {
     public String render() {
         StringBuilder sb = new StringBuilder();
         sb.append(confirmed ? "[CONFIRMED]" : "[choose]").append('\n');
-        sb.append("Alliance: ").append(alliance).append("   (dpad ←/→)\n");
-        sb.append("Start:    ").append(start).append("   (dpad ↑/↓)\n");
+        sb.append("Alliance: ").append(alliance).append("   (dpad left/right)\n");
+        sb.append("Start:    ").append(start).append("   (dpad up/down)\n");
         sb.append(confirmed ? "" : "Press A to confirm.");
         return sb.toString();
     }
 
-    private static StartPosition cycle(StartPosition s) {
+    /** Steps through the enum in either direction, wrapping at both ends. */
+    private static StartPosition cycle(StartPosition s, int step) {
         StartPosition[] vals = StartPosition.values();
-        return vals[(s.ordinal() + 1) % vals.length];
+        int next = (s.ordinal() + step % vals.length + vals.length) % vals.length;
+        return vals[next];
     }
 }

@@ -1,90 +1,197 @@
 package org.firstinspires.ftc.teamcode.subsystems.templates;
 
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.ivy.Command;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import java.util.HashMap;
+import org.firstinspires.ftc.teamcode.util.Hardware;
+
+import java.util.EnumMap;
 import java.util.Map;
 
-public class PositionalMotor {
+/**
+ * A motor driven to named encoder positions using the hub's built-in RUN_TO_POSITION controller.
+ *
+ * <pre>
+ *   public enum LiftState { DOWN, LOW, HIGH }
+ *
+ *   lift = new PositionalMotor&lt;&gt;(hardwareMap, "lift", LiftState.class)
+ *           .preset(LiftState.DOWN, 0)
+ *           .preset(LiftState.LOW, 450)
+ *           .preset(LiftState.HIGH, 1200)
+ *           .limits(0, 1250);
+ *
+ *   lift.goTo(LiftState.HIGH).schedule();
+ * </pre>
+ *
+ * <h2>Encoder zero is wherever the mechanism sits at init</h2>
+ * The constructor resets the encoder, so every preset is measured relative to the mechanism's
+ * physical position when the OpMode started. Start the robot with this mechanism in a repeatable
+ * place — against a hard stop is ideal — or the presets mean nothing.
+ *
+ * <h2>Power is deliberately not applied in the constructor</h2>
+ * Doing so would drive the mechanism during {@code init()}, before the driver has pressed start, and
+ * against an encoder zero that may not have settled. Power is applied on the first move instead.
+ *
+ * @param <S> the enum naming this mechanism's positions
+ */
+@Configurable
+public class PositionalMotor<S extends Enum<S>> implements Mechanism<S> {
     public static double DEFAULT_POWER = 0.7;
     public static int DEFAULT_TOLERANCE_TICKS = 15;
+    /** Give up on a move after this long, so a jam cannot hold the resource for the whole match. */
+    public static long MOVE_TIMEOUT_MS = 3000;
+    /** Minimum time before a move may report complete, so it cannot finish on the first tick. */
+    public static long MIN_MOVE_MS = 60;
 
     private final DcMotorEx motor;
-    private final Map<String, Integer> presets = new HashMap<>();
+    private final Map<S, Integer> presets;
     private double maxPower = DEFAULT_POWER;
     private int toleranceTicks = DEFAULT_TOLERANCE_TICKS;
     private int target = 0;
+    private S state = null;
+    private Integer minTicks = null;
+    private Integer maxTicks = null;
 
-    public PositionalMotor(HardwareMap hardwareMap, String name) {
-        this(hardwareMap, name, DcMotorSimple.Direction.FORWARD);
+    public PositionalMotor(HardwareMap hardwareMap, String name, Class<S> stateType) {
+        this(hardwareMap, name, stateType, DcMotorSimple.Direction.FORWARD);
     }
 
-    public PositionalMotor(HardwareMap hardwareMap, String name, DcMotorSimple.Direction direction) {
-        motor = hardwareMap.get(DcMotorEx.class, name);
+    public PositionalMotor(HardwareMap hardwareMap, String name, Class<S> stateType,
+                           DcMotorSimple.Direction direction) {
+        this.presets = new EnumMap<>(stateType);
+        motor = Hardware.get(hardwareMap, DcMotorEx.class, name);
+        if (motor == null) return;
         motor.setDirection(direction);
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        // Target before mode: the SDK expects a target to exist when RUN_TO_POSITION is entered,
+        // otherwise the motor briefly runs toward whatever target was last latched.
         motor.setTargetPosition(0);
-        motor.setPower(maxPower);
+        motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+        motor.setTargetPositionTolerance(toleranceTicks);
     }
 
-    public PositionalMotor preset(String name, int ticks) {
-        presets.put(name, ticks);
+    /** False when the motor is missing from the robot configuration. All motion calls no-op. */
+    public boolean isAvailable() {
+        return motor != null;
+    }
+
+    /** Registers the encoder position for one state. Chainable. */
+    public PositionalMotor<S> preset(S state, int ticks) {
+        presets.put(state, ticks);
+        return this;
+    }
+
+    /** Clamps every future target into [min, max]. Protects the mechanism from a bad preset. */
+    public PositionalMotor<S> limits(int minTicks, int maxTicks) {
+        this.minTicks = minTicks;
+        this.maxTicks = maxTicks;
         return this;
     }
 
     public void setMaxPower(double power) {
-        this.maxPower = power;
-        motor.setPower(power);
+        this.maxPower = Math.min(1, Math.abs(power));
     }
 
     public void setTolerance(int ticks) {
         this.toleranceTicks = ticks;
+        if (motor != null) motor.setTargetPositionTolerance(ticks);
     }
 
+    /** Moves to a raw encoder position, bypassing the presets. */
     public void goToTicks(int ticks) {
+        if (motor == null) return;
+        if (minTicks != null) ticks = Math.max(minTicks, Math.min(maxTicks, ticks));
         target = ticks;
         motor.setTargetPosition(ticks);
         motor.setPower(maxPower);
     }
 
-    public void goToPreset(String name) {
-        Integer ticks = presets.get(name);
-        if (ticks == null) throw new IllegalArgumentException("unknown preset: " + name);
+    /**
+     * Moves to a registered state. States without a preset are ignored rather than throwing —
+     * this runs inside a command's {@code start()} on the OpMode thread, where an exception would
+     * stop the robot mid-match.
+     */
+    public void goToState(S state) {
+        Integer ticks = presets.get(state);
+        if (ticks == null) return;
+        this.state = state;
         goToTicks(ticks);
     }
 
     public int getCurrentTicks() {
-        return motor.getCurrentPosition();
+        return motor == null ? 0 : motor.getCurrentPosition();
     }
 
     public int getTarget() {
         return target;
     }
 
-    public boolean atTarget() {
-        return Math.abs(motor.getCurrentPosition() - target) <= toleranceTicks;
+    @Override
+    public S getState() {
+        return state;
     }
 
+    @Override
+    public boolean atState() {
+        return atTarget();
+    }
+
+    public boolean atTarget() {
+        return motor == null || Math.abs(motor.getCurrentPosition() - target) <= toleranceTicks;
+    }
+
+    /** Cuts power, leaving the mechanism held by the motor's BRAKE zero-power behaviour. */
+    public void stop() {
+        if (motor != null) motor.setPower(0);
+    }
+
+    /** Intentionally empty: RUN_TO_POSITION is closed-loop in the hub, with nothing to tick here. */
+    @Override
     public void update() {
     }
 
-    public Command goToCommand(int ticks) {
-        return Command.build()
-                .setStart(() -> goToTicks(ticks))
-                .setDone(this::atTarget)
-                .requiring(this);
+    /**
+     * Drives to a state, finishing on arrival or after {@link #MOVE_TIMEOUT_MS}.
+     *
+     * <p>Three guards, all of which the naive version gets wrong:
+     * <ul>
+     *   <li><b>Instant false completion.</b> {@code atTarget()} is already true whenever the new
+     *       target is within tolerance of the current position, so {@code done()} could fire on the
+     *       very first tick. {@link #MIN_MOVE_MS} forces a real attempt.</li>
+     *   <li><b>Hanging on a jam.</b> Without a timeout a stuck mechanism holds its Ivy resource for
+     *       the rest of the match, blocking every later command that needs it.</li>
+     *   <li><b>No cleanup on interrupt.</b> Without {@code setEnd} an interrupted move leaves the
+     *       motor still driving toward the old target.</li>
+     * </ul>
+     */
+    @Override
+    public Command goTo(S state) {
+        return timedMove(() -> goToState(state));
     }
 
-    public Command goToCommand(String preset) {
+    /** Same guarantees as {@link #goTo}, for a raw encoder position. */
+    public Command goToTicksCommand(int ticks) {
+        return timedMove(() -> goToTicks(ticks));
+    }
+
+    private Command timedMove(Runnable start) {
+        final long[] startedAt = new long[1];
         return Command.build()
-                .setStart(() -> goToPreset(preset))
-                .setDone(this::atTarget)
+                .setStart(() -> {
+                    startedAt[0] = System.currentTimeMillis();
+                    start.run();
+                })
+                .setDone(() -> {
+                    long elapsed = System.currentTimeMillis() - startedAt[0];
+                    if (elapsed < MIN_MOVE_MS) return false;
+                    return atTarget() || elapsed >= MOVE_TIMEOUT_MS;
+                })
+                .setEnd(ec -> stop())
                 .requiring(this);
     }
 }
