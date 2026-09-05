@@ -1,3 +1,26 @@
+# Team robot code (BIOBUZZ 2026-2027)
+
+This repository is our robot controller app for the *FIRST* Tech Challenge, built on FTC SDK
+v11.1 with Pedro Pathing 2.1.2 and the Ivy command framework.
+
+**Start at [`docs/README.md`](docs/README.md).** It is the guide to *our* code: eight short
+lessons, the house rules, how to build, test and deploy, and what is still unfinished before the
+robot can drive itself.
+
+```bash
+./gradlew :TeamCode:test            # unit tests, no robot needed
+./gradlew :TeamCode:assembleDebug   # build the app
+```
+
+Team code lives in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`; `CLAUDE.md` at the
+root describes every file in that tree. `FtcRobotController/` is the stock SDK module and is
+rarely modified.
+
+---
+
+*Everything below this line is the upstream FTC SDK README, kept verbatim so SDK updates merge
+cleanly.*
+
 ## NOTICE
 
 This repository contains the public FTC SDK for the DECODE (2025-2026) competition season.
