@@ -166,7 +166,7 @@ public class ConceptCommands extends OpMode {
         // the rest of the match.
         //
         // Skip with an explicit no-op instead. instant() sets done to true, so it completes on its
-        // first tick. MainAuto.skipIfAnyLegMissed is the real use of this.
+        // first tick. AutoRoutine.skipIfAnyLegMissed is the real use of this.
         if (gamepad1.dpadLeftWasPressed()) {
             run("conditional skip", conditional(
                     () -> robot.intake.hasPollen(),

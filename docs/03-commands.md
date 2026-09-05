@@ -121,7 +121,7 @@ driving into a wall while the driver's sticks do nothing.
 re-asserts its wishes every loop. Calling `robot.intake.intake()` from an `instant(...)` that does
 not `requiring(intake)` is overwritten by the idle command before the motor is written. Go through
 the subsystem's command factories, or make the enclosing group `requiring(...)` the subsystem
-explicitly, as `MainAuto.buildRoutine()` does. `Concept: Commands` demo 9 shows the failure live.
+explicitly, as `AutoRoutine.build()` does. `Concept: Commands` demo 9 shows the failure live.
 
 ## The `unless()` trap
 
@@ -146,7 +146,7 @@ Skip with an explicit no-op instead:
 conditional(() -> shouldRun, realCommand, instant(() -> { }))
 ```
 
-`instant()` sets `done` to `true`, so it completes on its first tick. `MainAuto.skipIfAnyLegMissed`
+`instant()` sets `done` to `true`, so it completes on its first tick. `AutoRoutine.skipIfAnyLegMissed`
 is the real use of this.
 
 The general lesson is worth more than the specific bug: **`setDone` is not optional.** Any command

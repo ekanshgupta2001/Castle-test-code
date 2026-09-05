@@ -136,14 +136,16 @@ follower.pathBuilder()
         .build();
 ```
 
-`MainAuto` uses exactly this to spin the intake up before arrival. Also available:
+`AutoRoutine` uses exactly this to spin the intake up before arrival. Also available:
 `addTemporalCallback(ms, action)` and `addPoseCallback(pose, action, guess)`.
 
 Overlapping mechanism motion with driving is where autonomous cycle time actually comes from.
 
 ## Autonomous structure
 
-`MainAuto` builds the whole routine as one `sequential` in `start()`, once the alliance is known:
+`AutoRoutine.build()` assembles the whole routine as one `sequential`; `MainAuto` constructs it in
+`start()`, once the alliance is known, and schedules it. Keeping the tree out of the OpMode is what
+lets `AutoRoutineTest` run it on a laptop:
 
 ```java
 return sequential(
@@ -161,7 +163,10 @@ return sequential(
 ```
 
 `MainAuto` writes no loop at all — `MatchOpMode` owns it (lesson 1). All sequencing lives in the
-command tree, so there is no hand-written state machine to get out of sync.
+command tree, so there is no hand-written state machine to get out of sync. The tree ends with
+`.requiring(robot.intake, robot.drivetrain)`: the routine owns both subsystems for its whole
+duration, which is what makes the direct `intake::intake` call in the leg-one callback safe (see
+lesson 3, "the mirror-image trap").
 
 ### What a "leg" actually is
 
