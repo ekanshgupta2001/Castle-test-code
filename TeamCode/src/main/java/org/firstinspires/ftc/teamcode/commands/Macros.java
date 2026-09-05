@@ -266,10 +266,9 @@ public class Macros {
      *
      * <p>Holds the drivetrain like every other macro, even though it never drives. Two reasons:
      * the fix is hard-set into the follower, which is only sensible with the robot stationary, and
-     * suspending driver control is what releases the heading hold cleanly. Before this
-     * requirement existed the macro ran underneath driver control, and a new heading from the tag
-     * left the heading hold chasing the old one, spinning the robot. Driver control is suspended
-     * for at most {@link #PIPELINE_WARMUP_MS} plus {@link #RELOCALIZE_TIMEOUT_MS}.
+     * suspending driver control is what releases the heading hold cleanly, so the hold cannot
+     * chase the heading the tag just replaced. Driver control is suspended for at most
+     * {@link #PIPELINE_WARMUP_MS} plus {@link #RELOCALIZE_TIMEOUT_MS}.
      */
     public Command relocalize() {
         return sequential(

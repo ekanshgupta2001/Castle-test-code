@@ -4,12 +4,9 @@ package org.firstinspires.ftc.teamcode.util.hardware;
  * Every name this code expects to find in the Robot Controller configuration.
  *
  * <h2>Why these are not just literals in each constructor</h2>
- * They used to be — {@code "IM"} in Intake, {@code "limelight"} in Limelight, {@code "sensor_color"}
- * in ColorSensor, and the drive motors inside Pedro's constants. Four files to open to answer "what
- * does the config need to be called?", and four files to edit when someone renames a device in the
- * configuration app at a competition.
- *
- * <p>Renaming a device is now a one-line change here. The subsystem constructors that take an
+ * Literals spread across the subsystems and Pedro's constants mean four files to open to answer
+ * "what does the config need to be called?", and four to edit when someone renames a device in the
+ * configuration app at a competition. Renaming a device is a one-line change here. The subsystem constructors that take an
  * explicit name still exist, so a second robot with a different configuration is still possible
  * without touching this file.
  *

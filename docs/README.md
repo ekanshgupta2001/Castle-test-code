@@ -27,6 +27,7 @@ things that make it teleop.
 | 6 | [Writing a macro](06-writing-a-macro.md) | Build a new one-button action, safely |
 | 7 | [Control theory](07-control-theory.md) | Understand the feedback loops, and when to reach for one |
 | 8 | [Diagnostics](08-diagnostics.md) | Find out what the robot actually did, instead of guessing |
+| 9 | [Lessons learned](09-lessons-learned.md) | Know why each rule exists, from the bug that created it |
 
 Each lesson points at real files in this repo. None of the code in them is invented for the lesson.
 

@@ -16,13 +16,10 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Everything a match OpMode has to do, done once.
- *
- * <p>{@code Teleop} and {@code Auto} were independently doing the same twelve things — building the
- * robot, resetting the scheduler, opening a log, initialising the dashboard, resetting gamepad edge
- * detection, starting the match clock, timing the loop, rate-limiting the drawing, and closing it
- * all down again. Two copies of a lifecycle is two places for it to drift, and it had already begun
- * to: only one of them was setting the telemetry transmission interval.
+ * Everything a match OpMode has to do, done once: building the robot, resetting the scheduler,
+ * opening a log, initialising the dashboard, resetting gamepad edge detection, starting the match
+ * clock, timing the loop, rate-limiting the drawing, and closing it all down again. Two copies of
+ * a lifecycle would be two places for it to drift (see {@code docs/09}).
  *
  * <h2>The loop order is enforced here, not remembered</h2>
  * {@link #loop()} is {@code final}. Subclasses fill in the gaps between the fixed steps:
@@ -37,9 +34,8 @@ import java.util.List;
  *   log / telemetry / draw            &lt;- fixed, draw is rate-limited
  * </pre>
  *
- * This is the single most important rule in the codebase (see {@code docs/01}), and it used to be
- * upheld by two hand-written copies agreeing with each other. Now a subclass cannot get it wrong —
- * there is no ordering left for it to choose.
+ * This is the single most important rule in the codebase (see {@code docs/01}). A subclass cannot
+ * get it wrong — there is no ordering left for it to choose.
  *
  * <p>One {@link #nowMs} timestamp is taken per loop and shared, rather than each caller reading the
  * clock again.

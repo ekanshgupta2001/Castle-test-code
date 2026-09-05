@@ -102,7 +102,7 @@ public class Drivetrain {
             built = Constants.createFollower(hardwareMap);
         } catch (RuntimeException e) {
             // createFollower() looks up four drive motors plus the localizer. Any missing name
-            // used to throw straight out of Robot's constructor and kill the OpMode.
+            // would otherwise throw straight out of Robot's constructor and kill the OpMode.
             Hardware.recordFailure("drivetrain", "createFollower failed: " + e.getMessage());
         }
         pedro = built;
@@ -384,8 +384,7 @@ public class Drivetrain {
      * when the command ends naturally; the hold is released by the next path, by
      * {@link #cancelPath()}, or, in teleop, the moment driver control resumes. With
      * {@code holdEnd = false}, or whenever the command is interrupted, {@code cancelPath()} runs
-     * and control goes straight back to the driver. An earlier version cancelled on every end,
-     * which made the parameter a no-op.
+     * and control goes straight back to the driver. {@code DrivetrainCommandTest} pins both cases.
      */
     public Command followLazyCommand(Supplier<PathChain> pathSupplier, boolean holdEnd) {
         // Boxed so the lambdas below share one instance of each; the command may be built once and

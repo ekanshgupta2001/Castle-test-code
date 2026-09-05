@@ -13,10 +13,9 @@ import com.pedropathing.util.PoseHistory;
 /**
  * Renders the robot, its paths, and its pose history onto the Panels dashboard field view.
  *
- * <p>Originally a package-private class inside {@code pedroPathing.Tuning}, which meant only the
- * tuning OpModes could draw. It lives here so teleop, autonomous, and vision debugging can all
- * visualise what the robot thinks is happening — usually the fastest way to see that a pose
- * estimate has gone wrong.
+ * <p>Lives in {@code util/} rather than beside the Pedro tuning menu so teleop, autonomous, and
+ * vision debugging can all visualise what the robot thinks is happening — usually the fastest way
+ * to see that a pose estimate has gone wrong.
  *
  * <p>Call {@link #init()} once, draw during the loop, then {@link #sendPacket()} to push the frame.
  *

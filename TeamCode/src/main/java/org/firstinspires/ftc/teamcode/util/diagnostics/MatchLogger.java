@@ -43,7 +43,7 @@ import java.util.Locale;
  *       read fault would otherwise propagate out of {@code loop()} and end the match over a log
  *       line. Logging must never be able to stop the robot.</li>
  *   <li><b>Flushes every {@link #FLUSH_EVERY_ROWS} rows.</b> A {@code BufferedWriter} only reaches
- *       disk when its 8 KB buffer fills or it is closed, so an abnormal exit used to lose the tail
+ *       disk when its 8 KB buffer fills or it is closed, so an abnormal exit would lose the tail
  *       of the match — the interesting part.</li>
  * </ul>
  *

@@ -4,10 +4,9 @@ package org.firstinspires.ftc.teamcode.util.math;
  * Angle arithmetic that respects the wrap at 0/2pi.
  *
  * <h2>Why this is its own class</h2>
- * These three functions used to live in {@link VisionMath}, which meant field geometry, heading
- * hold, and macro targeting all imported a class named "VisionMath" to do arithmetic that has
- * nothing to do with a camera. The name misdescribed half its contents, and a student copying the
- * pattern would learn the wrong lesson about where general math belongs.
+ * Field geometry, heading hold, and macro targeting all need this arithmetic, and none of it has
+ * anything to do with a camera. Keeping it out of {@link VisionMath} keeps that class's name
+ * honest and shows where general math belongs.
  *
  * <h2>The wrap is the whole point</h2>
  * Two conventions meet in this codebase and disagree:

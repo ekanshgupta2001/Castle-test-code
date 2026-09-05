@@ -127,8 +127,7 @@ public class Limelight {
 
         // Pick the largest blob in a single pass. "Primary" is decided by this code rather than by
         // whatever sort order happens to be set in the Limelight web UI, which is invisible from
-        // here — and a one-pass max costs no allocation, where copying and sorting the list every
-        // loop did, for an ordering nothing else ever reads.
+        // here — and a one-pass max costs no allocation in the loop.
         blobDetections = colors;
         LLResultTypes.ColorResult largest = colors.get(0);
         for (int i = 1; i < colors.size(); i++) {

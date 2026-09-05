@@ -94,9 +94,8 @@ public class Robot {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
-        // Resolved once here rather than walking hardwareMap.voltageSensor every loop, which is
-        // what Teleop and SelfTest each used to do. It is a DeviceMapping (Iterable, not a
-        // Collection), so it has to be copied element by element.
+        // Resolved once here rather than walking hardwareMap.voltageSensor every loop. It is a
+        // DeviceMapping (Iterable, not a Collection), so it has to be copied element by element.
         voltageSensors = new ArrayList<>();
         for (VoltageSensor sensor : hardwareMap.voltageSensor) {
             voltageSensors.add(sensor);

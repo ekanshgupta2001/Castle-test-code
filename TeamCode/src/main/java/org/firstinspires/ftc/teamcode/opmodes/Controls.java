@@ -13,12 +13,10 @@ import java.util.function.ToDoubleFunction;
  * Every gamepad binding, and the help card that describes them, from one definition.
  *
  * <h2>Why this is an enum and not a pile of if-statements</h2>
- * The bindings were previously written twice: once as {@code gamepad1.aWasPressed()} in the input
- * handler, and once as a hand-typed string in the init-phase help text. Nothing connected them, so
- * re-binding a button silently left the card lying to the drivers — and the card is the only thing
- * a new driver has at 9am on competition day.
- *
- * <p>Here the button, the label, and the description are one object. {@link #helpLines()} renders
+ * A binding written as {@code gamepad1.aWasPressed()} in the handler and again as a hand-typed
+ * string on the help card has nothing connecting the two, and the card is the only thing a new
+ * driver has at 9am on competition day. Here the button, the label, and the description are one
+ * object. {@link #helpLines()} renders
  * the card from the same constants {@code Teleop} reads, so the two cannot disagree.
  *
  * <h2>Adding a control</h2>

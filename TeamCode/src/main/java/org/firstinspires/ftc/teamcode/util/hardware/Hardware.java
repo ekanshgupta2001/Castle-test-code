@@ -11,8 +11,8 @@ import java.util.List;
  *
  * <p>{@code hardwareMap.get(...)} throws when a device is missing or misnamed in the robot
  * configuration. Because subsystems are built in {@link org.firstinspires.ftc.teamcode.Robot}'s
- * constructor, one bad name used to take down the entire OpMode before it ever ran — so a broken
- * colour sensor cost you the whole driver-controlled period.
+ * constructor, one bad name would take down the entire OpMode before it ever ran — a broken
+ * colour sensor costing the whole driver-controlled period.
  *
  * <p>This helper returns {@code null} instead and records the name. Subsystems null-check the
  * handle and quietly no-op, so the robot still drives with a missing camera. {@link #getMissing()}

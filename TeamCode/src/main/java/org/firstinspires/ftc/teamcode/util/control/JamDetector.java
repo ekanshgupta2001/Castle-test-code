@@ -7,12 +7,11 @@ import org.firstinspires.ftc.teamcode.util.math.VisionMath;
  * Current-based stall detection with bounded automatic un-jamming.
  *
  * <h2>Why this is not inside Intake</h2>
- * It used to be. It is the most intricate logic on the robot — three pieces of timing state, an
- * attempt counter, and an eligibility rule that is wrong in two different directions if you get it
- * backwards — and it was untestable, because it sat in a class holding a {@code DcMotorEx}. Pulled
- * out here it is pure state and arithmetic, so every branch below is covered by
- * {@code JamDetectorTest} without a robot. Same reasoning as {@link VisionMath} and
- * {@link PoseFusion}.
+ * It is the most intricate logic on the robot — three pieces of timing state, an attempt counter,
+ * and an eligibility rule that is wrong in two different directions if you get it backwards — and
+ * inside a class holding a {@code DcMotorEx} none of it could be tested. Here it is pure state and
+ * arithmetic, so every branch below is covered by {@code JamDetectorTest} without a robot. Same
+ * reasoning as {@link VisionMath} and {@link PoseFusion}; the story is in {@code docs/09}.
  *
  * <h2>How it decides</h2>
  * High current alone is not a jam — a motor accelerating from rest draws stall current for a moment.
@@ -43,10 +42,8 @@ public class JamDetector {
 
     /**
      * When over-current was first seen. Paired with {@link #stalling} rather than using 0 as a
-     * "not stalling" sentinel: 0 is a perfectly valid timestamp, and treating it as the sentinel
-     * means a stall beginning at t=0 restarts its own dwell every loop and never fires. That never
-     * showed while this logic lived in Intake, because {@code System.currentTimeMillis()} is never
-     * 0 — it took a unit test starting at t=0 to expose it.
+     * "not stalling" sentinel: 0 is a perfectly valid timestamp, and a sentinel that overlaps the
+     * valid range means a stall beginning at t=0 restarts its own dwell every loop and never fires.
      */
     private long stallStartMs = 0;
     private boolean stalling = false;
