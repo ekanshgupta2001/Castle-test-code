@@ -28,7 +28,7 @@ Read this when a rule looks like ceremony. It probably is not.
 | **Sept 2026 review.** `resetHeading()` rewrote the pose but left the heading hold's setpoint, so the PID spun the robot back by its old heading. `relocalize()` did the same underneath driver control. | Any pose write releases the heading hold; relocalize holds the drivetrain. | `Drivetrain.setPose()`, `Macros.relocalize()` |
 | **Sept 2026 review.** Three `Concept: Commands` demos called the intake directly from an `instant` that did not require it. Ivy starts a scheduled command immediately, then the idle command's `execute()` re-asserted stop before the write. The motor never moved. The left bumper was also bound twice, so one demo could never fire. | Go through a command that requires the subsystem, or make the group own it explicitly. | `Intake` command factories, `AutoRoutine.build()`, demo 9 (lesson 3) |
 | **Sept 2026 review.** `cancelPath()` called `startTeleopDrive()` directly and never set the teleop flag, so driver control called it again next tick and the follower was ticked three times in one loop. | State flags are set where the state changes, and commands change no state at build time. | `Drivetrain.cancelPath()`, `turnToCommand()` |
-| **Sept 2026 review.** `docs/` and `CLAUDE.md` were in `.gitignore`. Nobody who cloned the repo could read a single lesson, and forty files of refactor sat uncommitted. | Documentation is code: tracked, reviewed, built by CI. | `.github/workflows/teamcode.yml` |
+| **Sept 2026 review.** `docs/` was in `.gitignore`. Nobody who cloned the repo could read a single lesson, and forty files of refactor sat uncommitted. | Documentation is code: tracked, reviewed, built by CI. | `.github/workflows/teamcode.yml` |
 
 ## The pattern in the pattern
 

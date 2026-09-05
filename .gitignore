@@ -79,3 +79,8 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+
+# Claude Code files are local-only and must never be committed.
+CLAUDE.md
+**/CLAUDE.md
+.claude/

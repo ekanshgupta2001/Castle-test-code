@@ -12,9 +12,8 @@ robot can drive itself.
 ./gradlew :TeamCode:assembleDebug   # build the app
 ```
 
-Team code lives in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`; `CLAUDE.md` at the
-root describes every file in that tree. `FtcRobotController/` is the stock SDK module and is
-rarely modified.
+Team code lives in `TeamCode/src/main/java/org/firstinspires/ftc/teamcode/`, with a short readme
+of its own. `FtcRobotController/` is the stock SDK module and is rarely modified.
 
 ---
 
