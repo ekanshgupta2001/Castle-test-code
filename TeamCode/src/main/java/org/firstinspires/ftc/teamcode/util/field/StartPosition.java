@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.util.field;
 
-import org.firstinspires.ftc.teamcode.util.AutoSelector;
+import org.firstinspires.ftc.teamcode.opmodes.AutoSelector;
 
 /**
  * Where on the alliance wall the robot starts.

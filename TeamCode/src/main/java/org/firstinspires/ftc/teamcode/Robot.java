@@ -12,7 +12,7 @@ import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Limelight;
 import org.firstinspires.ftc.teamcode.subsystems.templates.ExampleLift;
-import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 import org.firstinspires.ftc.teamcode.util.field.PoseFusion;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;

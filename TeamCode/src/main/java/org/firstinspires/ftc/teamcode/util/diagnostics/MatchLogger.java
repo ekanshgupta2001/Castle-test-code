@@ -6,7 +6,7 @@ import com.pedropathing.math.Vector;
 
 import org.firstinspires.ftc.robotcore.internal.system.AppUtil;
 import org.firstinspires.ftc.teamcode.Robot;
-import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 
 import java.io.BufferedWriter;
 import java.io.File;

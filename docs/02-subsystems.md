@@ -84,7 +84,7 @@ Lesson 1 said math belongs in `util/` so it can be tested. The intake's anti-jam
 that proves it.
 
 It used to live inside `Intake`, which holds a `DcMotorEx` — so none of it could be tested without a
-robot, a real jam, and a stopwatch. Moving it to `util/JamDetector` (pure state and arithmetic, time
+robot, a real jam, and a stopwatch. Moving it to `util/control/JamDetector` (pure state and arithmetic, time
 passed in as an argument) made all twelve cases testable, and the first test run immediately failed:
 
 ```java

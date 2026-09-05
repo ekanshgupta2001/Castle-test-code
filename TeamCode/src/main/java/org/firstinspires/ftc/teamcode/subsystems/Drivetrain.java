@@ -12,7 +12,7 @@ import com.pedropathing.ivy.behaviors.InterruptedBehavior;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+import org.firstinspires.ftc.teamcode.pedro.Constants;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.util.math.Angles;
 import org.firstinspires.ftc.teamcode.util.time.Clock;

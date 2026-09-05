@@ -74,7 +74,7 @@ Deploying to the robot is the green Run button in Android Studio.
 
 Two things are unfinished, and everything path-related depends on them:
 
-1. **`pedroPathing/Constants.java` is default-constructed.** No drivetrain, no localizer, no tuned
+1. **`pedro/Constants.java` is default-constructed.** No drivetrain, no localizer, no tuned
    gains. Pedro cannot follow a path until this is filled in and the tuning procedure is run.
 2. **`util/field/FieldConstants.java` holds placeholder coordinates.** The alliance-mirroring math is real
    and tested; the numbers are guesses. Measure the field and replace them.

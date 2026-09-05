@@ -3,7 +3,7 @@
 The first seven lessons are about making the robot do something. This one is about knowing what it
 actually did — which is the difference between fixing a problem and guessing at it.
 
-> Everything here is in `util/diagnostics/`, plus `util/MatchClock`. All of it is unit tested,
+> Everything here is in `util/diagnostics/`, plus `util/time/MatchClock`. All of it is unit tested,
 > because none of it touches hardware.
 
 ## The problem with watching telemetry

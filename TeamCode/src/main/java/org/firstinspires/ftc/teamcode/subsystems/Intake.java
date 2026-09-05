@@ -15,7 +15,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-import org.firstinspires.ftc.teamcode.util.JamDetector;
+import org.firstinspires.ftc.teamcode.util.control.JamDetector;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
 import org.firstinspires.ftc.teamcode.util.time.Clock;

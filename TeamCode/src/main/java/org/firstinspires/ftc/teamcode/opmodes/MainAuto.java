@@ -4,8 +4,8 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-import org.firstinspires.ftc.teamcode.util.AutoSelector;
-import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.opmodes.AutoSelector;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 import org.firstinspires.ftc.teamcode.util.diagnostics.Drawing;
 import org.firstinspires.ftc.teamcode.util.field.Alliance;
 import org.firstinspires.ftc.teamcode.util.field.FieldConstants;

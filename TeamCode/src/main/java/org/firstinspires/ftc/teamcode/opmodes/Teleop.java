@@ -7,7 +7,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.commands.Macros;
 import org.firstinspires.ftc.teamcode.subsystems.templates.ExampleLift;
-import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 import org.firstinspires.ftc.teamcode.util.diagnostics.Drawing;
 import org.firstinspires.ftc.teamcode.util.field.PoseStorage;
 import org.firstinspires.ftc.teamcode.util.math.DriveScaling;

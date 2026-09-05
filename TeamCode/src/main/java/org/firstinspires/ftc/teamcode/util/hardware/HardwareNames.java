@@ -37,7 +37,7 @@ public final class HardwareNames {
 
     // ---- Drivetrain ----
     //
-    // These are consumed by MecanumConstants inside pedroPathing/Constants.java, which is still
+    // These are consumed by MecanumConstants inside pedro/Constants.java, which is still
     // default-constructed. When that file is filled in, point it at these rather than retyping the
     // names — otherwise the drivetrain becomes the one subsystem whose config names live somewhere
     // else again.

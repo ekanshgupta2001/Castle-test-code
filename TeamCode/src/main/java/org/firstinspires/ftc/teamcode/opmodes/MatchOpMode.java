@@ -6,7 +6,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.Robot;
-import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 import org.firstinspires.ftc.teamcode.util.diagnostics.Drawing;
 import org.firstinspires.ftc.teamcode.util.diagnostics.LoopTimer;
 import org.firstinspires.ftc.teamcode.util.diagnostics.MatchLogger;

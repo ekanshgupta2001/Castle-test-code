@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.control;
 
 import org.firstinspires.ftc.teamcode.util.field.PoseFusion;
 import org.firstinspires.ftc.teamcode.util.math.VisionMath;

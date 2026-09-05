@@ -3,7 +3,7 @@
 Pedro Pathing drives the robot along smooth curves to a target pose while correcting for error. We
 use version 2.1.2.
 
-> **Nothing in this lesson works on our robot yet.** `pedroPathing/Constants.java` is still
+> **Nothing in this lesson works on our robot yet.** `pedro/Constants.java` is still
 > default-constructed — no drivetrain, no localizer, no tuned gains. The code compiles and the
 > structure is complete, but the follower cannot move a real robot until Constants is filled in and
 > the tuning procedure has been run. Read this now; it becomes real the day that is done.

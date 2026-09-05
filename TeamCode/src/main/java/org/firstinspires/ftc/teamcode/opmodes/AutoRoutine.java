@@ -60,7 +60,7 @@ import java.util.List;
  * routine's behaviour independent of what happens to be inside it.
  *
  * <h2>Before this can run on a robot</h2>
- * {@code pedroPathing/Constants.java} is still default-constructed — no drivetrain, no localizer —
+ * {@code pedro/Constants.java} is still default-constructed — no drivetrain, no localizer —
  * so the follower cannot move a real robot yet. The poses in {@link FieldConstants} are placeholders
  * too. Both must be filled in before this does anything useful on the field.
  */

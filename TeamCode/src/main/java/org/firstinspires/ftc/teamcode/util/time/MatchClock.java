@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.time;
 
 import com.bylazar.configurables.annotations.Configurable;
 
