@@ -4,15 +4,23 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.commands.Macros;
+import org.firstinspires.ftc.teamcode.game.Pollen;
 import org.firstinspires.ftc.teamcode.subsystems.ColorSensor;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Limelight;
-import org.firstinspires.ftc.teamcode.util.Hardware;
-import org.firstinspires.ftc.teamcode.util.PoseFusion;
+import org.firstinspires.ftc.teamcode.subsystems.templates.ExampleLift;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
+import org.firstinspires.ftc.teamcode.util.field.PoseFusion;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -24,16 +32,28 @@ import java.util.List;
  */
 @Configurable
 public class Robot {
-    /** Hue of a pollen game piece, in degrees. Yellow sits near 55. Tune on the real field. */
-    public static float POLLEN_HUE_DEGREES = 55f;
-    public static float POLLEN_HUE_TOLERANCE = 25f;
-    public static float POLLEN_MIN_SATURATION = 0.45f;
-    public static float POLLEN_MIN_VALUE = 0.20f;
+    /**
+     * How often the battery is sampled, in milliseconds.
+     *
+     * <p>Unlike encoders and motor currents, {@code VoltageSensor} reads are <em>not</em> served
+     * from the Lynx bulk cache, so each one is its own bus transaction. Pack voltage also moves far
+     * slower than the 50 Hz loop, so sampling it every cycle spends real time on a number that has
+     * not changed.
+     */
+    public static long VOLTAGE_SAMPLE_MS = 250;
 
     public final Drivetrain drivetrain;
     public final Limelight limelight;
     public final ColorSensor colorSensor;
     public final Intake intake;
+
+    /**
+     * Reference mechanism built from {@code subsystems/templates}. No lift is on the robot yet, so
+     * {@link ExampleLift#isAvailable()} is false and every call no-ops — but it is wired exactly as
+     * a real mechanism would be, so the templates have a live user rather than being code nobody
+     * runs. Bolt on a lift, add the two config names, and it works.
+     */
+    public final ExampleLift lift;
 
     /** Multi-subsystem one-button actions. Owned here so every OpMode gets the same set. */
     public final Macros macros;
@@ -41,10 +61,30 @@ public class Robot {
     /** Blends odometry with AprilTag fixes. See {@link #updateLocalization()}. */
     public final PoseFusion poseFusion = new PoseFusion();
 
+    /**
+     * How much of the match period is left. Null until an OpMode calls {@link #startMatch}.
+     *
+     * <p>Owned here rather than by an OpMode so that telemetry, the match logger, and any
+     * time-aware routine all read the same clock instead of each keeping its own timer.
+     */
+    private MatchClock matchClock = null;
+
+    /** Where every timestamp on the robot comes from. Injected so the loop logic is testable. */
+    private final Clock clock;
+
     private final List<LynxModule> hubs;
+    private final List<VoltageSensor> voltageSensors;
+
+    private double batteryVolts = 0;
+    private long lastVoltageSampleMs = 0;
 
     public Robot(HardwareMap hardwareMap) {
+        this(hardwareMap, Clock.system());
+    }
+
+    public Robot(HardwareMap hardwareMap, Clock clock) {
         Hardware.reset();
+        this.clock = clock;
 
         // MANUAL bulk caching batches every encoder/current read into one bus transaction per loop.
         // Without it each getCurrent()/getVelocity() is its own USB round-trip, and the intake alone
@@ -54,13 +94,46 @@ public class Robot {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
-        drivetrain = new Drivetrain(hardwareMap);
+        // Resolved once here rather than walking hardwareMap.voltageSensor every loop. It is a
+        // DeviceMapping (Iterable, not a Collection), so it has to be copied element by element.
+        voltageSensors = new ArrayList<>();
+        for (VoltageSensor sensor : hardwareMap.voltageSensor) {
+            voltageSensors.add(sensor);
+        }
+
+        drivetrain = new Drivetrain(hardwareMap, clock);
         limelight = new Limelight(hardwareMap);
         colorSensor = new ColorSensor(hardwareMap);
-        intake = new Intake(hardwareMap);
-        intake.setCapturedSupplier(this::pollenAtColorSensor);
+        intake = new Intake(hardwareMap, HardwareNames.INTAKE_MOTOR, clock);
+        lift = new ExampleLift(hardwareMap, clock);
+        intake.setCapturedSupplier(this::pieceAtColorSensor);
 
         macros = new Macros(this);
+    }
+
+    /**
+     * Composes already-built subsystems. For tests, and for any robot whose hardware is resolved
+     * somewhere other than the hardware map. No hubs or voltage sensors are known, so bulk caching
+     * is untouched and {@link #getBatteryVolts()} reads 0. Does not reset the {@link Hardware}
+     * registry, since the subsystems were constructed before this call.
+     */
+    public Robot(Drivetrain drivetrain, Limelight limelight, ColorSensor colorSensor,
+                 Intake intake, ExampleLift lift, Clock clock) {
+        this.clock = clock;
+        hubs = Collections.emptyList();
+        voltageSensors = Collections.emptyList();
+        this.drivetrain = drivetrain;
+        this.limelight = limelight;
+        this.colorSensor = colorSensor;
+        this.intake = intake;
+        this.lift = lift;
+        intake.setCapturedSupplier(this::pieceAtColorSensor);
+        macros = new Macros(this);
+    }
+
+    /** The clock every timestamp on the robot comes from. */
+    public Clock getClock() {
+        return clock;
     }
 
     /** Names of hardware devices missing from the robot configuration. Empty means all present. */
@@ -77,21 +150,69 @@ public class Robot {
         for (LynxModule hub : hubs) {
             hub.clearBulkCache();
         }
+        // Pushed every loop, like Intake does with its jam thresholds, so a dashboard edit to the
+        // game piece's height reaches the camera geometry without a redeploy.
+        limelight.setTargetHeightInches(Pollen.HEIGHT_INCHES);
         limelight.update();
         colorSensor.update();
+
+        long now = clock.nowMs();
+        if (matchClock != null) matchClock.update(now);
+        sampleBattery(now);
+    }
+
+    /**
+     * Starts the match clock for this period. Call once from the OpMode's {@code start()}.
+     *
+     * @param period which period is beginning
+     */
+    public void startMatch(MatchClock.Period period) {
+        matchClock = period == MatchClock.Period.AUTONOMOUS
+                ? MatchClock.forAutonomous()
+                : MatchClock.forTeleop();
+        matchClock.start(clock.nowMs());
+    }
+
+    /**
+     * The match clock, or {@code null} before {@link #startMatch} has been called.
+     *
+     * <p>Callers must null-check: {@code init_loop()} runs before any period has started, and
+     * diagnostics OpModes never start one at all.
+     */
+    public MatchClock getMatchClock() {
+        return matchClock;
+    }
+
+    /**
+     * Lowest battery voltage across all voltage sensors, refreshed at most every
+     * {@link #VOLTAGE_SAMPLE_MS}. Returns 0 when no sensor could be read.
+     *
+     * <p>The <em>lowest</em> rather than the average: with two hubs, the one sagging is the one
+     * that is about to brown out, and averaging hides it.
+     */
+    public double getBatteryVolts() {
+        return batteryVolts;
+    }
+
+    private void sampleBattery(long nowMs) {
+        if (lastVoltageSampleMs != 0 && nowMs - lastVoltageSampleMs < VOLTAGE_SAMPLE_MS) return;
+        lastVoltageSampleMs = nowMs;
+
+        double lowest = Double.MAX_VALUE;
+        for (VoltageSensor sensor : voltageSensors) {
+            double v = sensor.getVoltage();
+            if (v > 0 && v < lowest) lowest = v;
+        }
+        batteryVolts = lowest == Double.MAX_VALUE ? 0 : lowest;
     }
 
     /** Pushes queued outputs to hardware. Call at the BOTTOM of the loop, after commands run. */
     public void writeActuators() {
         intake.update();
+        lift.update();
         drivetrain.update();
     }
 
-    /** Convenience for callers that do not need the read/write split (e.g. diagnostics). */
-    public void update() {
-        readSensors();
-        writeActuators();
-    }
 
     /**
      * Releases non-actuator hardware at the end of an OpMode. Safe to call more than once.
@@ -115,14 +236,11 @@ public class Robot {
     }
 
     /**
-     * True when the colour sensor is looking at something pollen-coloured.
-     *
-     * <p>Thresholds hue first, gated by saturation and brightness. A brightness-only test would
-     * fire on any bright object — a white field wall reads as "captured".
+     * True when the colour sensor is looking at a game piece. This is the one place the generic
+     * intake meets the season's {@link Pollen} definition.
      */
-    private boolean pollenAtColorSensor() {
-        return colorSensor.matchesHue(
-                POLLEN_HUE_DEGREES, POLLEN_HUE_TOLERANCE, POLLEN_MIN_SATURATION, POLLEN_MIN_VALUE);
+    private boolean pieceAtColorSensor() {
+        return Pollen.isAtSensor(colorSensor);
     }
 
     /**
@@ -133,7 +251,7 @@ public class Robot {
      * blends: a fix is gated on tag count, field bounds, and a maximum jump, then latency-compensated
      * and filtered. One bad frame nudges the estimate instead of teleporting the robot.
      *
-     * <p>Does nothing while a path is running if the camera is on the pollen pipeline, since the
+     * <p>Does nothing while a path is running if the camera is on the blob pipeline, since the
      * botpose is meaningless there.
      */
     public void updateLocalization() {
@@ -142,7 +260,7 @@ public class Robot {
 
         Pose vision = limelight.getBotposeAsPedroPose();   // already null unless it is trustworthy
         Pose corrected = poseFusion.update(
-                System.currentTimeMillis(), odometry, vision, limelight.getVisionLatencyMs());
+                clock.nowMs(), odometry, vision, limelight.getVisionLatencyMs());
 
         // The fusion contract requires writing the result back - its delta bookkeeping assumes the
         // returned pose became the follower's new baseline.
@@ -152,8 +270,11 @@ public class Robot {
     /**
      * Attempts a one-shot AprilTag relocalisation, hard-setting the pose. Returns whether it worked.
      *
-     * <p>For init only, when there is no prior estimate worth preserving. During a match use
-     * {@link #updateLocalization()} instead, which blends rather than teleports.
+     * <p>For init, when there is no prior estimate worth preserving, and for the driver's explicit
+     * relocalize macro, which holds the drivetrain so the robot is stationary. For continuous
+     * correction during a match use {@link #updateLocalization()}, which blends rather than
+     * teleports. Hard-setting the pose also releases the drivetrain's heading hold, so the hold
+     * cannot chase the heading that was just replaced.
      *
      * <p>Only succeeds on the AprilTag pipeline with at least one tag in view — {@link Limelight}
      * enforces both, because a default all-zeros botpose would otherwise teleport us to field centre.

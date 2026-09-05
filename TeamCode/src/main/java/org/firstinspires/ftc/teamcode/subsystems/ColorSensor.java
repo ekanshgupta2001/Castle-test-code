@@ -8,8 +8,9 @@ import com.qualcomm.robotcore.hardware.NormalizedRGBA;
 import com.qualcomm.robotcore.hardware.SwitchableLight;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.teamcode.util.ColorMath;
-import org.firstinspires.ftc.teamcode.util.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.math.ColorMath;
 
 /**
  * Wrapper over {@link NormalizedColorSensor} that caches one reading per loop.
@@ -37,7 +38,7 @@ public class ColorSensor {
     private NormalizedRGBA colors = new NormalizedRGBA();
 
     public ColorSensor(HardwareMap hardwareMap) {
-        this(hardwareMap, "sensor_color", DEFAULT_GAIN, true);
+        this(hardwareMap, HardwareNames.COLOR_SENSOR, DEFAULT_GAIN, true);
     }
 
     public ColorSensor(HardwareMap hardwareMap, String name, float gain, boolean lightOn) {
@@ -75,10 +76,6 @@ public class ColorSensor {
     public boolean matchesHue(float hueDegrees, float tolerance, float minSaturation, float minValue) {
         return sensor != null
                 && ColorMath.matches(hsv, hueDegrees, tolerance, minSaturation, minValue);
-    }
-
-    public NormalizedRGBA getColors() {
-        return colors;
     }
 
     public float getRed() {

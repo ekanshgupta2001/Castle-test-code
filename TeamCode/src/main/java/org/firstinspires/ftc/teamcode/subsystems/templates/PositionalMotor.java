@@ -7,7 +7,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.util.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
 import java.util.EnumMap;
 import java.util.Map;
@@ -48,6 +49,7 @@ public class PositionalMotor<S extends Enum<S>> implements Mechanism<S> {
     public static long MIN_MOVE_MS = 60;
 
     private final DcMotorEx motor;
+    private final Clock clock;
     private final Map<S, Integer> presets;
     private double maxPower = DEFAULT_POWER;
     private int toleranceTicks = DEFAULT_TOLERANCE_TICKS;
@@ -62,8 +64,20 @@ public class PositionalMotor<S extends Enum<S>> implements Mechanism<S> {
 
     public PositionalMotor(HardwareMap hardwareMap, String name, Class<S> stateType,
                            DcMotorSimple.Direction direction) {
+        this(hardwareMap, name, stateType, direction, Clock.system());
+    }
+
+    public PositionalMotor(HardwareMap hardwareMap, String name, Class<S> stateType,
+                           DcMotorSimple.Direction direction, Clock clock) {
+        this(Hardware.get(hardwareMap, DcMotorEx.class, name), stateType, direction, clock);
+    }
+
+    /** Builds on an already-resolved motor ({@code null} for "not fitted"). Tests inject a fake. */
+    public PositionalMotor(DcMotorEx motor, Class<S> stateType,
+                           DcMotorSimple.Direction direction, Clock clock) {
         this.presets = new EnumMap<>(stateType);
-        motor = Hardware.get(hardwareMap, DcMotorEx.class, name);
+        this.motor = motor;
+        this.clock = clock;
         if (motor == null) return;
         motor.setDirection(direction);
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -183,11 +197,11 @@ public class PositionalMotor<S extends Enum<S>> implements Mechanism<S> {
         final long[] startedAt = new long[1];
         return Command.build()
                 .setStart(() -> {
-                    startedAt[0] = System.currentTimeMillis();
+                    startedAt[0] = clock.nowMs();
                     start.run();
                 })
                 .setDone(() -> {
-                    long elapsed = System.currentTimeMillis() - startedAt[0];
+                    long elapsed = clock.nowMs() - startedAt[0];
                     if (elapsed < MIN_MOVE_MS) return false;
                     return atTarget() || elapsed >= MOVE_TIMEOUT_MS;
                 })

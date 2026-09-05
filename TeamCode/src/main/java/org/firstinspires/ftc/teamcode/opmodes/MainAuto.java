@@ -1,184 +1,147 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import static com.pedropathing.ivy.commands.Commands.instant;
-import static com.pedropathing.ivy.groups.Groups.sequential;
-
-import com.pedropathing.geometry.BezierLine;
+import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
-import com.pedropathing.ivy.Scheduler;
-import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
-import org.firstinspires.ftc.teamcode.Robot;
-import org.firstinspires.ftc.teamcode.util.Alliance;
-import org.firstinspires.ftc.teamcode.util.AutoSelector;
-import org.firstinspires.ftc.teamcode.util.Drawing;
-import org.firstinspires.ftc.teamcode.util.FieldConstants;
-import org.firstinspires.ftc.teamcode.util.MatchLogger;
-import org.firstinspires.ftc.teamcode.util.PoseStorage;
-import org.firstinspires.ftc.teamcode.util.StartPosition;
-
-import java.io.IOException;
-import java.util.List;
+import org.firstinspires.ftc.teamcode.game.FieldPoses;
+import org.firstinspires.ftc.teamcode.util.time.MatchClock;
+import org.firstinspires.ftc.teamcode.util.diagnostics.Drawing;
+import org.firstinspires.ftc.teamcode.util.field.Alliance;
+import org.firstinspires.ftc.teamcode.util.field.FieldConstants;
+import org.firstinspires.ftc.teamcode.util.field.PoseStorage;
+import org.firstinspires.ftc.teamcode.util.field.StartPosition;
 
 /**
- * Autonomous routine.
+ * Autonomous OpMode: choose the alliance and start position during init, then run
+ * {@link AutoRoutine}.
  *
- * <h2>Shape of the thing</h2>
- * Init builds nothing but the selector. The routine itself is assembled in {@code start()}, after
- * the alliance is known, as one Ivy {@code sequential} of path legs and subsystem actions. The loop
- * then does nothing but tick sensors, the scheduler, and the follower — all the sequencing lives in
- * the command tree rather than in a hand-written state machine.
+ * <p>Init builds nothing but the selector. The routine itself is assembled in {@code start()},
+ * after the alliance is known, as one Ivy command tree. The loop then does nothing but tick
+ * sensors, the scheduler, and the follower — all the sequencing lives in {@link AutoRoutine},
+ * which is why this class is short and that one is testable.
  *
- * <h2>Two things this demonstrates beyond "drive somewhere"</h2>
- * <ul>
- *   <li><b>Mid-path callbacks.</b> {@code addParametricCallback(t, action)} fires a mechanism part
- *       way along a leg, so the intake spins up before arrival instead of after it. Overlapping
- *       mechanism motion with driving is where autonomous cycle time actually comes from.</li>
- *   <li><b>Continuous handoff.</b> {@link PoseStorage} is written every loop, not once at the end,
- *       so teleop still inherits a good pose if this OpMode is stopped early.</li>
- * </ul>
- *
- * <h2>Before this can run</h2>
- * {@code pedroPathing/Constants.java} is still default-constructed — no drivetrain, no localizer —
- * so the follower cannot move a real robot yet. The poses in {@link FieldConstants} are placeholders
- * too. Both must be filled in before this does anything useful on the field.
+ * <p>{@link PoseStorage} is written every loop, not once at the end, so teleop still inherits a
+ * good pose if this OpMode is stopped early.
  */
+@Configurable
 @Autonomous(name = "Auto", group = "Main")
-public class MainAuto extends OpMode {
-    private Robot robot;
-    private MatchLogger logger;
+public class MainAuto extends MatchOpMode {
+    /**
+     * How far an AprilTag fix may disagree with the selected start pose before it is called out.
+     *
+     * <p>A large disagreement almost always means the wrong alliance or start position was picked,
+     * not that the camera is wrong. Catching that in init costs nothing; catching it after the
+     * routine has driven into the wrong half of the field costs the match.
+     */
+    public static double START_POSE_DISAGREEMENT_INCHES = 18.0;
+
     private final AutoSelector selector = new AutoSelector();
 
     private Alliance alliance = Alliance.RED;
     private StartPosition startPosition = StartPosition.LEFT;
+    private AutoRoutine routine = null;
 
     @Override
-    public void init() {
-        robot = new Robot(hardwareMap);
-        Scheduler.reset();
-        robot.intake.defaultIdleCommand().schedule();
-
-        try {
-            logger = new MatchLogger("auto");
-        } catch (IOException e) {
-            logger = null;
-        }
-
-        Drawing.init();
-
-        List<String> missing = robot.getMissingHardware();
-        if (!missing.isEmpty()) {
-            telemetry.addLine("MISSING HARDWARE:");
-            for (String m : missing) telemetry.addLine("  - " + m);
-        }
-        telemetry.update();
+    protected String logTag() {
+        return "auto";
     }
 
     @Override
-    public void init_loop() {
+    protected MatchClock.Period matchPeriod() {
+        return MatchClock.Period.AUTONOMOUS;
+    }
+
+    @Override
+    protected void onInit() {
+        robot.intake.defaultIdleCommand().schedule();
+    }
+
+    @Override
+    protected void onInitLoop() {
         selector.poll(gamepad1);
         alliance = selector.getAlliance();
         startPosition = selector.getStart();
 
-        robot.readSensors();
-
         // Seed the pose from the chosen start position so the first path begins from the right
         // place. An AprilTag fix, if one is visible, is more trustworthy and overrides it.
-        Pose start = FieldConstants.forAlliance(FieldConstants.startPose(startPosition), alliance);
+        Pose start = FieldConstants.forAlliance(FieldPoses.startPose(startPosition), alliance);
         robot.drivetrain.setStartingPose(start);
         boolean sawTag = robot.tryLocalizeFromAprilTag();
 
         telemetry.addLine(selector.render());
         telemetry.addLine();
+        if (!selector.isConfirmed()) {
+            // The routine runs whether or not this was confirmed — refusing to move would be worse.
+            // But an unconfirmed selector usually means nobody set the alliance, and a mirrored
+            // routine driving the wrong way is not subtle.
+            telemetry.addLine(">> NOT CONFIRMED - press A. Routine will use the values shown.");
+        }
         telemetry.addData("Start pose", start);
         telemetry.addData("AprilTag fix?", sawTag ? "yes (overrides start pose)" : "none");
+
+        double disagreement = startPoseDisagreement(start);
+        if (!Double.isNaN(disagreement)) {
+            telemetry.addData("Tag vs start pose", "%.1f in", disagreement);
+            if (disagreement > START_POSE_DISAGREEMENT_INCHES) {
+                telemetry.addLine(">> CHECK ALLIANCE/START - the camera says the robot is "
+                        + "somewhere else entirely.");
+            }
+        }
+
         telemetry.addData("Pose", robot.drivetrain.getPose());
         Drawing.drawRobot(robot.drivetrain.getPose());
         Drawing.sendPacket();
     }
 
-    @Override
-    public void start() {
-        gamepad1.resetEdgeDetection();
-        gamepad2.resetEdgeDetection();
-        robot.poseFusion.seed(robot.drivetrain.getPose());
-        buildRoutine().schedule();
+    /**
+     * Distance in inches between the selected start pose and the current AprilTag fix, or
+     * {@code NaN} when no trustworthy fix is available.
+     */
+    private double startPoseDisagreement(Pose selected) {
+        Pose fromTag = robot.limelight.getBotposeAsPedroPose();
+        if (fromTag == null || selected == null) return Double.NaN;
+        return Math.hypot(fromTag.getX() - selected.getX(), fromTag.getY() - selected.getY());
     }
 
     @Override
-    public void loop() {
-        robot.readSensors();
-        robot.updateLocalization();
-        Scheduler.execute();
-        robot.writeActuators();
+    protected void onStart() {
+        robot.poseFusion.seed(robot.drivetrain.getPose());
+        routine = new AutoRoutine(robot, alliance);
+        routine.build().schedule();
+    }
 
+    @Override
+    protected void onAfterAct() {
         // Saved every loop rather than in stop(): if this OpMode is interrupted, teleop should still
         // inherit wherever the robot actually got to.
         PoseStorage.save(robot.drivetrain.getPose(), alliance, startPosition);
+    }
 
-        if (logger != null) logger.logRow(robot);
-
+    @Override
+    protected void onTelemetry() {
+        if (routine != null) {
+            telemetry.addData("Leg", routine.getCurrentLeg());
+            telemetry.addData("Missed legs", routine.getMissedLegs());
+            for (String entry : routine.getLegLog()) telemetry.addLine("  " + entry);
+            telemetry.addLine();
+        }
+        MatchClock clock = robot.getMatchClock();
+        telemetry.addData("Time", clock == null ? "-" : clock.getStatus());
+        telemetry.addData("Loop", loopStats.getStatus());
         telemetry.addData("Pose", robot.drivetrain.getPose());
         telemetry.addData("Localization", robot.poseFusion.getStatus());
         telemetry.addData("Following path?", robot.drivetrain.isFollowingPath());
-        telemetry.addData("hasPollen?", robot.intake.hasPollen());
+        telemetry.addData("hasPiece?", robot.intake.hasPiece());
+    }
+
+    @Override
+    protected void onDraw() {
         Drawing.drawDebug(robot.drivetrain.getFollower());
     }
 
     @Override
-    public void stop() {
+    protected void onStop() {
         PoseStorage.save(robot.drivetrain.getPose(), alliance, startPosition);
-        Scheduler.reset();
-        if (robot != null) robot.stop();
-        if (logger != null) logger.close();
-    }
-
-    /**
-     * The routine. Poses come from {@link FieldConstants} and are mirrored for the alliance, so
-     * there is exactly one copy of each location.
-     */
-    private com.pedropathing.ivy.Command buildRoutine() {
-        Pose start = alliancePose(FieldConstants.startPose(startPosition));
-        Pose staging = alliancePose(FieldConstants.BLUE_STAGING);
-        Pose score = alliancePose(FieldConstants.BLUE_SCORE);
-        Pose park = alliancePose(FieldConstants.BLUE_PARK);
-
-        return sequential(
-                // Leg 1: drive to staging, spinning the intake up 60% of the way there rather than
-                // waiting until arrival.
-                robot.drivetrain.followPathCommand(
-                        legWithCallback(start, staging, 0.6, robot.intake::intake), true),
-
-                // Leg 2: carry it to the scoring position, holding at the end so contact does not
-                // push the robot off its mark.
-                robot.drivetrain.followPathCommand(leg(staging, score), true),
-                robot.intake.runForMs(-1400, 600),
-
-                // Leg 3: park.
-                robot.drivetrain.followPathCommand(leg(score, park), true),
-                instant(robot.intake::stop)
-        );
-    }
-
-    private Pose alliancePose(Pose bluePose) {
-        return FieldConstants.forAlliance(bluePose, alliance);
-    }
-
-    private PathChain leg(Pose from, Pose to) {
-        return robot.drivetrain.getFollower().pathBuilder()
-                .addPath(new BezierLine(from, to))
-                .setLinearHeadingInterpolation(from.getHeading(), to.getHeading())
-                .build();
-    }
-
-    /** A leg that fires {@code action} once the robot is {@code t} of the way along it. */
-    private PathChain legWithCallback(Pose from, Pose to, double t, Runnable action) {
-        return robot.drivetrain.getFollower().pathBuilder()
-                .addPath(new BezierLine(from, to))
-                .setLinearHeadingInterpolation(from.getHeading(), to.getHeading())
-                .addParametricCallback(t, action)
-                .build();
     }
 }

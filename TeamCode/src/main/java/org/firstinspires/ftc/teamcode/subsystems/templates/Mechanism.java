@@ -23,7 +23,8 @@ import com.pedropathing.ivy.Command;
  *
  * {@link PositionalMotor} and {@link PositionalServo} already implement it for the two common cases
  * (an encoder motor and a servo), so most mechanisms need no new code at all — just an enum and some
- * preset values. See {@code ExampleLift} for a worked example.
+ * preset values. {@code ExampleLift} combines both into one subsystem and is wired into
+ * {@code Robot}, so there is a live example to read rather than a hypothetical one.
  *
  * @param <S> the enum naming this mechanism's positions
  */

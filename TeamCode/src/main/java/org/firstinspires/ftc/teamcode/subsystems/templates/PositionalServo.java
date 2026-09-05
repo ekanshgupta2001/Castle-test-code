@@ -10,7 +10,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.Range;
 
-import org.firstinspires.ftc.teamcode.util.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 
 import java.util.EnumMap;
 import java.util.Map;

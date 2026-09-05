@@ -13,23 +13,35 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.util.Hardware;
-import org.firstinspires.ftc.teamcode.util.MedianFilter;
-import org.firstinspires.ftc.teamcode.util.VisionMath;
+import org.firstinspires.ftc.teamcode.util.field.FieldConstants;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.math.MedianFilter;
+import org.firstinspires.ftc.teamcode.util.math.Angles;
+import org.firstinspires.ftc.teamcode.util.math.VisionMath;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Wraps the Limelight 3A. Two jobs, one per pipeline: AprilTag localisation, and a colour-blob
+ * detector for whatever the season's game piece is.
+ *
+ * <p>Game-agnostic on purpose. This class talks about a "blob" and a "target height"; what the
+ * blob is, how tall it is, and what the drivers call it live in {@code game/Pollen}, and
+ * {@code Robot} pushes the height in every loop via {@link #setTargetHeightInches(double)}.
+ *
+ * <p>The botpose is reported relative to the FIELD CENTRE; Pedro's origin is a field CORNER, so
+ * {@link #getBotposeAsPedroPose()} adds half the field to both axes. That half-field figure comes
+ * from {@code FieldConstants} so there is exactly one place that knows how big the field is.
+ */
 @Configurable
 public class Limelight {
-    // Field is 144" square; Limelight botpose origin is field center, Pedro origin is corner.
-    public static double FIELD_HALF_INCHES = 72.0;
+    /** Added to the tag-derived yaw, for a camera whose forward axis is not the robot's. */
     public static double BOTPOSE_HEADING_OFFSET_RAD = 0.0;
 
     public static int APRILTAG_PIPELINE_INDEX = 0;
-    public static int POLLEN_PIPELINE_INDEX = 1;
+    public static int BLOB_PIPELINE_INDEX = 1;
 
     // Camera mount geometry - measure these on the real robot before trusting any pose estimate.
     public static double CAMERA_HEIGHT_INCHES = 12.0;
@@ -37,7 +49,6 @@ public class Limelight {
     public static double CAMERA_FORWARD_OFFSET_INCHES = 6.0;   // camera ahead of robot center
     public static double CAMERA_LEFT_OFFSET_INCHES = 0.0;      // camera left of centerline
     public static double CAMERA_YAW_OFFSET_DEGREES = 0.0;      // positive turns the camera left
-    public static double POLLEN_HEIGHT_INCHES = 1.5;
 
     /** Stop this far short of the piece, so the path ends with it at the intake, not under us. */
     public static double PICKUP_STANDOFF_INCHES = 8.0;
@@ -52,15 +63,18 @@ public class Limelight {
     public static double MAX_DETECTION_SPREAD_DEGREES = 6.0;
 
     private final Limelight3A limelight;
+    /** Height of the blob's centre above the floor. Set by {@code Robot} from the game piece. */
+    private double targetHeightInches = 0.0;
     private LLResult latestResult;
     private int currentPipeline;
-    private List<LLResultTypes.ColorResult> pollenDetections = Collections.emptyList();
+    private List<LLResultTypes.ColorResult> blobDetections = Collections.emptyList();
+    private LLResultTypes.ColorResult primaryBlob = null;
 
     private final MedianFilter txFilter = new MedianFilter(DETECTION_WINDOW);
     private final MedianFilter tyFilter = new MedianFilter(DETECTION_WINDOW);
 
     public Limelight(HardwareMap hardwareMap) {
-        this(hardwareMap, "limelight", APRILTAG_PIPELINE_INDEX);
+        this(hardwareMap, HardwareNames.LIMELIGHT, APRILTAG_PIPELINE_INDEX);
     }
 
     public Limelight(HardwareMap hardwareMap, String name, int pipeline) {
@@ -83,11 +97,20 @@ public class Limelight {
         return limelight != null;
     }
 
+    /**
+     * Height of the blob target's centre above the floor, in inches. The ray-to-floor geometry
+     * needs it; the season's value lives in {@code game/Pollen} and {@code Robot} pushes it here.
+     */
+    public void setTargetHeightInches(double inches) {
+        targetHeightInches = inches;
+    }
+
     public void update() {
         if (limelight == null) return;
         latestResult = limelight.getLatestResult();
         if (latestResult == null || !latestResult.isValid()) {
-            pollenDetections = Collections.emptyList();
+            blobDetections = Collections.emptyList();
+            primaryBlob = null;
             txFilter.reset();
             tyFilter.reset();
             return;
@@ -95,25 +118,25 @@ public class Limelight {
 
         List<LLResultTypes.ColorResult> colors = latestResult.getColorResults();
         if (colors == null || colors.isEmpty()) {
-            pollenDetections = Collections.emptyList();
+            blobDetections = Collections.emptyList();
+            primaryBlob = null;
             txFilter.reset();
             tyFilter.reset();
             return;
         }
 
-        // Sort largest-blob-first so "primary" is a property of this code rather than of whatever
-        // sort order happens to be configured in the Limelight web UI, which is invisible from here.
-        List<LLResultTypes.ColorResult> sorted = new ArrayList<>(colors);
-        Collections.sort(sorted, new Comparator<LLResultTypes.ColorResult>() {
-            @Override
-            public int compare(LLResultTypes.ColorResult a, LLResultTypes.ColorResult b) {
-                return Double.compare(b.getTargetArea(), a.getTargetArea());
-            }
-        });
-        pollenDetections = sorted;
+        // Pick the largest blob in a single pass. "Primary" is decided by this code rather than by
+        // whatever sort order happens to be set in the Limelight web UI, which is invisible from
+        // here — and a one-pass max costs no allocation in the loop.
+        blobDetections = colors;
+        LLResultTypes.ColorResult largest = colors.get(0);
+        for (int i = 1; i < colors.size(); i++) {
+            if (colors.get(i).getTargetArea() > largest.getTargetArea()) largest = colors.get(i);
+        }
+        primaryBlob = largest;
 
-        txFilter.add(sorted.get(0).getTargetXDegrees());
-        tyFilter.add(sorted.get(0).getTargetYDegrees());
+        txFilter.add(largest.getTargetXDegrees());
+        tyFilter.add(largest.getTargetYDegrees());
     }
 
     public LLResult getLatestResult() {
@@ -139,16 +162,23 @@ public class Limelight {
         return latestResult != null && latestResult.getStaleness() > MAX_STALENESS_MS;
     }
 
+    /**
+     * Raw horizontal offset of the current target in degrees, or {@link Double#NaN} with no
+     * target. NaN rather than 0 for the same reason {@link #estimateBlobDistanceInches()} uses
+     * it: 0 degrees is a real, on-axis reading and must not be confused with "nothing seen".
+     */
     public double getTx() {
-        return hasTarget() ? latestResult.getTx() : 0;
+        return hasTarget() ? latestResult.getTx() : Double.NaN;
     }
 
+    /** Raw vertical offset in degrees, or {@link Double#NaN} with no target. */
     public double getTy() {
-        return hasTarget() ? latestResult.getTy() : 0;
+        return hasTarget() ? latestResult.getTy() : Double.NaN;
     }
 
+    /** Target area as a fraction of the frame, or {@link Double#NaN} with no target. */
     public double getTa() {
-        return hasTarget() ? latestResult.getTa() : 0;
+        return hasTarget() ? latestResult.getTa() : Double.NaN;
     }
 
     /**
@@ -158,7 +188,7 @@ public class Limelight {
      * early-return below short-circuit every future call after a single failed switch, leaving the
      * camera permanently on the wrong pipeline with no retry.
      */
-    public boolean switchPipeline(int pipeline) {
+    private boolean switchPipeline(int pipeline) {
         if (limelight == null) return false;
         if (pipeline == currentPipeline) return true;
         boolean ok;
@@ -172,9 +202,17 @@ public class Limelight {
             // The camera needs several frames to produce results from the new pipeline. Drop the
             // caches so nothing reads the old pipeline's data as if it were the new pipeline's.
             latestResult = null;
-            pollenDetections = Collections.emptyList();
+            blobDetections = Collections.emptyList();
+            primaryBlob = null;
         }
         return ok;
+    }
+
+    /** Which pipeline the camera is on, named rather than numbered, for telemetry. */
+    public String getPipelineName() {
+        if (currentPipeline == APRILTAG_PIPELINE_INDEX) return "apriltag";
+        if (currentPipeline == BLOB_PIPELINE_INDEX) return "blob";
+        return "pipeline " + currentPipeline;
     }
 
     public int getPipelineIndex() {
@@ -215,9 +253,9 @@ public class Limelight {
         Position pos = bp.getPosition().toUnit(DistanceUnit.INCH);
         if (Double.isNaN(pos.x) || Double.isNaN(pos.y)) return null;
 
-        double x = pos.x + FIELD_HALF_INCHES;
-        double y = pos.y + FIELD_HALF_INCHES;
-        if (!isInsideField(x, y)) return null;
+        double x = pos.x + FieldConstants.FIELD_CENTER_INCHES;
+        double y = pos.y + FieldConstants.FIELD_CENTER_INCHES;
+        if (!FieldConstants.isInsideField(x, y)) return null;
 
         YawPitchRollAngles ori = bp.getOrientation();
         double yaw = ori.getYaw(AngleUnit.RADIANS) + BOTPOSE_HEADING_OFFSET_RAD;
@@ -240,47 +278,31 @@ public class Limelight {
         return (long) (latestResult.getCaptureLatency() + latestResult.getTargetingLatency());
     }
 
-    public static boolean isInsideField(double x, double y) {
-        double side = FIELD_HALF_INCHES * 2;
-        return x >= 0 && x <= side && y >= 0 && y <= side;
-    }
 
-    // ---- Pollen color-blob detection ----
+    // ---- Colour-blob detection ----
 
-    public boolean activatePollenPipeline() {
-        return switchPipeline(POLLEN_PIPELINE_INDEX);
+    public boolean activateBlobPipeline() {
+        return switchPipeline(BLOB_PIPELINE_INDEX);
     }
 
     public boolean activateAprilTagPipeline() {
         return switchPipeline(APRILTAG_PIPELINE_INDEX);
     }
 
-    public boolean seesPollen() {
-        return !pollenDetections.isEmpty();
+    public boolean seesBlob() {
+        return !blobDetections.isEmpty();
     }
 
-    public int getPollenCount() {
-        return pollenDetections.size();
+    private double getBlobTx() {
+        return primaryBlob == null ? 0 : primaryBlob.getTargetXDegrees();
     }
 
-    public List<LLResultTypes.ColorResult> getPollenDetections() {
-        return Collections.unmodifiableList(pollenDetections);
-    }
-
-    public LLResultTypes.ColorResult getPrimaryPollen() {
-        return pollenDetections.isEmpty() ? null : pollenDetections.get(0);
-    }
-
-    public double getPollenTx() {
-        return pollenDetections.isEmpty() ? 0 : pollenDetections.get(0).getTargetXDegrees();
-    }
-
-    public double getPollenTy() {
-        return pollenDetections.isEmpty() ? 0 : pollenDetections.get(0).getTargetYDegrees();
+    private double getBlobTy() {
+        return primaryBlob == null ? 0 : primaryBlob.getTargetYDegrees();
     }
 
     /** The camera's physical mounting, assembled from the tunable constants above. */
-    public static VisionMath.Mount mount() {
+    private static VisionMath.Mount mount() {
         return new VisionMath.Mount(CAMERA_HEIGHT_INCHES, CAMERA_PITCH_DEGREES,
                 CAMERA_FORWARD_OFFSET_INCHES, CAMERA_LEFT_OFFSET_INCHES, CAMERA_YAW_OFFSET_DEGREES);
     }
@@ -292,8 +314,8 @@ public class Limelight {
      * blob is all it takes to aim at a wall. This requires a full window <em>and</em> that the window
      * be tight; a blob jittering by more than {@link #MAX_DETECTION_SPREAD_DEGREES} is not a lock.
      */
-    public boolean hasStablePollen() {
-        return seesPollen()
+    public boolean hasStableBlob() {
+        return seesBlob()
                 && txFilter.isReady()
                 && tyFilter.isReady()
                 && txFilter.spread() <= MAX_DETECTION_SPREAD_DEGREES
@@ -301,15 +323,15 @@ public class Limelight {
     }
 
     /** Median tx over the detection window — use this, not the raw frame, for aiming. */
-    public double getFilteredPollenTx() {
+    public double getFilteredBlobTx() {
         return txFilter.median();
     }
 
-    public double getFilteredPollenTy() {
+    public double getFilteredBlobTy() {
         return tyFilter.median();
     }
 
-    public double getPollenSpreadDegrees() {
+    public double getBlobSpreadDegrees() {
         return Math.max(txFilter.spread(), tyFilter.spread());
     }
 
@@ -319,11 +341,11 @@ public class Limelight {
      * <p>Returns {@link Double#NaN} when there is no usable detection, rather than 0 — a zero here
      * would be indistinguishable from a legitimately computed zero and would be driven to.
      */
-    public double estimatePollenDistanceInches() {
-        if (pollenDetections.isEmpty()) return Double.NaN;
-        double ty = tyFilter.getCount() > 0 ? tyFilter.median() : getPollenTy();
+    public double estimateBlobDistanceInches() {
+        if (blobDetections.isEmpty()) return Double.NaN;
+        double ty = tyFilter.getCount() > 0 ? tyFilter.median() : getBlobTy();
         double d = VisionMath.forwardDistanceInches(
-                ty, CAMERA_PITCH_DEGREES, CAMERA_HEIGHT_INCHES - POLLEN_HEIGHT_INCHES);
+                ty, CAMERA_PITCH_DEGREES, CAMERA_HEIGHT_INCHES - targetHeightInches);
         if (Double.isNaN(d) || d > MAX_VALID_DISTANCE_INCHES) return Double.NaN;
         return d;
     }
@@ -331,12 +353,12 @@ public class Limelight {
     /**
      * Where the blob sits relative to the robot, as {@code {forward, left}} inches, or {@code null}.
      */
-    public double[] estimatePollenInRobotFrame() {
-        if (pollenDetections.isEmpty()) return null;
-        double tx = txFilter.getCount() > 0 ? txFilter.median() : getPollenTx();
-        double ty = tyFilter.getCount() > 0 ? tyFilter.median() : getPollenTy();
+    public double[] estimateBlobInRobotFrame() {
+        if (blobDetections.isEmpty()) return null;
+        double tx = txFilter.getCount() > 0 ? txFilter.median() : getBlobTx();
+        double ty = tyFilter.getCount() > 0 ? tyFilter.median() : getBlobTy();
         return VisionMath.targetInRobotFrame(
-                tx, ty, mount(), POLLEN_HEIGHT_INCHES, MAX_VALID_DISTANCE_INCHES);
+                tx, ty, mount(), targetHeightInches, MAX_VALID_DISTANCE_INCHES);
     }
 
     /**
@@ -347,20 +369,20 @@ public class Limelight {
      * <p>Returning null rather than the robot's own pose matters: the caller builds a path to this
      * value, and echoing the current pose yields a zero-length path that silently does nothing.
      */
-    public Pose estimatePollenFieldPose(Pose robotPose) {
+    public Pose estimateBlobApproachPose(Pose robotPose) {
         if (robotPose == null) return null;
-        double[] robotFrame = estimatePollenInRobotFrame();
+        double[] robotFrame = estimateBlobInRobotFrame();
         if (robotFrame == null) return null;
 
         // Face the piece itself, but stop short of it.
-        double heading = VisionMath.headingToward(
+        double heading = Angles.headingToward(
                 robotPose.getHeading(), robotFrame[0], robotFrame[1]);
 
         double[] approach = VisionMath.applyStandoff(robotFrame, PICKUP_STANDOFF_INCHES);
         double[] field = VisionMath.toFieldFrame(robotPose.getX(), robotPose.getY(),
                 robotPose.getHeading(), approach[0], approach[1]);
 
-        if (!isInsideField(field[0], field[1])) return null;
+        if (!FieldConstants.isInsideField(field[0], field[1])) return null;
         return new Pose(field[0], field[1], heading);
     }
 }
