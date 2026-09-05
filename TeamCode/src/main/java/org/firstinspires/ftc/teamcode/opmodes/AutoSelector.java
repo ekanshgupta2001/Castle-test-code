@@ -8,6 +8,9 @@ import org.firstinspires.ftc.teamcode.util.field.StartPosition;
 /**
  * Init-phase menu for choosing alliance and starting position.
  *
+ * <p>Dpad left/right flips the alliance, dpad up/down cycles the start position, A confirms, and
+ * B un-confirms so a wrong pick can be corrected without restarting the OpMode.
+ *
  * <p>Relies on the SDK's {@code *WasPressed()} one-shots, which latch on the rising edge and clear
  * when read. That makes them rate-independent — but it also means they must be read <em>every</em>
  * loop. See {@link #poll}.
@@ -19,15 +22,19 @@ public class AutoSelector {
 
     public void poll(Gamepad gamepad) {
         // Read every edge unconditionally, even when confirmed. Returning early instead would leave
-        // presses latched in the gamepad; they would all fire at once on the next unlock(), flipping
-        // the alliance and re-confirming before the user could touch anything.
+        // presses latched in the gamepad; they would all fire at once after the next B press,
+        // flipping the alliance and re-confirming before the user could touch anything.
         boolean left = gamepad.dpadLeftWasPressed();
         boolean right = gamepad.dpadRightWasPressed();
         boolean up = gamepad.dpadUpWasPressed();
         boolean down = gamepad.dpadDownWasPressed();
         boolean confirm = gamepad.aWasPressed();
+        boolean change = gamepad.bWasPressed();
 
-        if (confirmed) return;
+        if (confirmed) {
+            if (change) unlock();
+            return;
+        }
 
         if (left || right) {
             alliance = alliance.opposite();
@@ -42,6 +49,7 @@ public class AutoSelector {
         }
     }
 
+    /** Drops the confirmation so the selection can be changed. Bound to B in {@link #poll}. */
     public void unlock() {
         confirmed = false;
     }
@@ -60,7 +68,7 @@ public class AutoSelector {
 
     public String render() {
         StringBuilder sb = new StringBuilder();
-        sb.append(confirmed ? "[CONFIRMED]" : "[choose]").append('\n');
+        sb.append(confirmed ? "[CONFIRMED]   (B to change)" : "[choose]").append('\n');
         sb.append("Alliance: ").append(alliance).append("   (dpad left/right)\n");
         sb.append("Start:    ").append(start).append("   (dpad up/down)\n");
         sb.append(confirmed ? "" : "Press A to confirm.");

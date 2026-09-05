@@ -198,10 +198,6 @@ public class PoseFusion {
         return new double[] {histX[best], histY[best]};
     }
 
-    public Pose getFusedPose(double heading) {
-        return new Pose(filterX.getState(), filterY.getState(), heading);
-    }
-
     public Result getLastResult() {
         return lastResult;
     }

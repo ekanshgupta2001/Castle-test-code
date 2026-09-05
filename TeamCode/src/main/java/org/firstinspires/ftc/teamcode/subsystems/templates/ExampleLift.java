@@ -28,7 +28,7 @@ import org.firstinspires.ftc.teamcode.util.time.Clock;
  * <ol>
  *   <li>Enum-named positions, so {@code lift.goTo(Level.HIGH)} is checked by the compiler.</li>
  *   <li>Composing two mechanisms into one subsystem, with the subsystem exposing <em>intent</em>
- *       ({@code scoreHigh()}) rather than making callers sequence the parts themselves.</li>
+ *       ({@code scoreAt(Level.HIGH)}) rather than making callers sequence the parts themselves.</li>
  *   <li>Ordering that protects the hardware: the claw closes before the lift rises, and the lift
  *       returns to DOWN only after the claw has released. Encoding that here means no OpMode can
  *       get it wrong.</li>
@@ -121,10 +121,6 @@ public class ExampleLift {
                 claw.goTo(Grip.CLOSED),
                 lift.goTo(level)
         );
-    }
-
-    public Command scoreHigh() {
-        return scoreAt(Level.HIGH);
     }
 
     /**

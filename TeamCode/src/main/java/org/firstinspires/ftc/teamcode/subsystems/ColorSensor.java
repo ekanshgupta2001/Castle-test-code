@@ -78,10 +78,6 @@ public class ColorSensor {
                 && ColorMath.matches(hsv, hueDegrees, tolerance, minSaturation, minValue);
     }
 
-    public NormalizedRGBA getColors() {
-        return colors;
-    }
-
     public float getRed() {
         return colors.red;
     }

@@ -56,9 +56,4 @@ public final class Hardware {
     public static List<String> getMissing() {
         return Collections.unmodifiableList(missing);
     }
-
-    /** True when every device requested so far was found. */
-    public static boolean allPresent() {
-        return missing.isEmpty();
-    }
 }
