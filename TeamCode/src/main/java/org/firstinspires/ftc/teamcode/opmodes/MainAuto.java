@@ -58,7 +58,9 @@ import java.util.List;
  * <ul>
  *   <li><b>Mid-path callbacks.</b> {@code addParametricCallback(t, action)} fires a mechanism part
  *       way along a leg, so the intake spins up before arrival instead of after it. Overlapping
- *       mechanism motion with driving is where autonomous cycle time actually comes from.</li>
+ *       mechanism motion with driving is where autonomous cycle time actually comes from. The
+ *       callback may call the intake directly only because the routine itself holds the intake
+ *       resource; see {@link #buildRoutine()}.</li>
  *   <li><b>Continuous handoff.</b> {@link PoseStorage} is written every loop, not once at the end,
  *       so teleop still inherits a good pose if this OpMode is stopped early.</li>
  * </ul>
@@ -209,6 +211,16 @@ public class MainAuto extends MatchOpMode {
     /**
      * The routine. Poses come from {@link FieldConstants} and are mirrored for the alliance, so
      * there is exactly one copy of each location.
+     *
+     * <p><b>The routine owns the intake and the drivetrain for its whole duration</b>, declared
+     * explicitly at the end with {@code requiring(...)}. Ivy groups inherit their children's
+     * requirements, so the group already picks up the drivetrain from every leg and the intake
+     * from {@code runForMs} in the scoring block. That inheritance is what makes the direct
+     * {@code robot.intake::intake} callback in leg one safe: while this routine holds the intake,
+     * {@code Intake.defaultIdleCommand} is suspended and cannot overwrite the request. Delete the
+     * scoring block and, without the explicit declaration, the idle command would come back and
+     * silently stop the intake one loop after the callback. Declaring the ownership makes the
+     * routine's behaviour independent of what happens to be inside it.
      */
     private Command buildRoutine() {
         Pose staging = alliancePose(FieldConstants.BLUE_STAGING);
@@ -233,7 +245,7 @@ public class MainAuto extends MatchOpMode {
                 // robot actually ended up.
                 leg("park", park, false, PARK_TIMEOUT_MS),
                 instant(robot.intake::stop)
-        );
+        ).requiring(robot.intake, robot.drivetrain);
     }
 
     /**
