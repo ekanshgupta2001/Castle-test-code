@@ -301,7 +301,8 @@ public class Teleop extends MatchOpMode {
         }
         if (loggerError != null) telemetry.addData("!! Logger FAILED", loggerError);
         if (robot.intake.hasGivenUpUnjamming()) {
-            telemetry.addLine("!! INTAKE JAMMED - anti-jam gave up. Use LB to outtake.");
+            telemetry.addLine("!! INTAKE JAMMED - anti-jam gave up. Use "
+                    + Controls.OUTTAKE.button() + " on gamepad 2 to outtake.");
         }
         double volts = robot.getBatteryVolts();
         if (volts > 0 && volts < LOW_BATTERY_VOLTS) {

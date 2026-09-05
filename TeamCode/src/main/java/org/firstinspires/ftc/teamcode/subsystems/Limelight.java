@@ -144,16 +144,23 @@ public class Limelight {
         return latestResult != null && latestResult.getStaleness() > MAX_STALENESS_MS;
     }
 
+    /**
+     * Raw horizontal offset of the current target in degrees, or {@link Double#NaN} with no
+     * target. NaN rather than 0 for the same reason {@link #estimatePollenDistanceInches()} uses
+     * it: 0 degrees is a real, on-axis reading and must not be confused with "nothing seen".
+     */
     public double getTx() {
-        return hasTarget() ? latestResult.getTx() : 0;
+        return hasTarget() ? latestResult.getTx() : Double.NaN;
     }
 
+    /** Raw vertical offset in degrees, or {@link Double#NaN} with no target. */
     public double getTy() {
-        return hasTarget() ? latestResult.getTy() : 0;
+        return hasTarget() ? latestResult.getTy() : Double.NaN;
     }
 
+    /** Target area as a fraction of the frame, or {@link Double#NaN} with no target. */
     public double getTa() {
-        return hasTarget() ? latestResult.getTa() : 0;
+        return hasTarget() ? latestResult.getTa() : Double.NaN;
     }
 
     /**

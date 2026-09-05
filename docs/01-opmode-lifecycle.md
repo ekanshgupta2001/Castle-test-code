@@ -31,7 +31,9 @@ means the SDK calls your methods repeatedly rather than you writing one long `wh
 | `loop()` | ~50 Hz | Everything during the match |
 | `stop()` | once | Closing files, stopping the camera |
 
-Look at `opmodes/Teleop.java` — it uses all five.
+Look at `opmodes/MatchOpMode.java` — it implements all five, marks them `final`, and exposes
+hooks (`onInit`, `onInitLoop`, `onStart`, `onDecide`, `onTelemetry`, `onStop`) for `Teleop` and
+`MainAuto` to fill in. Neither of those files overrides a lifecycle method directly.
 
 ## The loop order is load-bearing
 
