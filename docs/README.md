@@ -41,12 +41,22 @@ python3 tools/analyze_log.py logs/teleop_*.csv          # summarise a run
 python3 tools/analyze_log.py --plot logs/teleop_*.csv   # and plot it
 ```
 
-If Gradle fails with **"Unsupported class file major version"**, your default Java is too new.
-Use the one Android Studio ships with:
+If Gradle fails with **"Unsupported class file major version"**, your default Java is too new
+for Gradle 8.9 (it runs on JDK 17 to 22). Use the one Android Studio ships with, either per command:
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :TeamCode:test
 ```
+
+or once, so plain `./gradlew` works from then on, by adding this line to
+`~/.gradle/gradle.properties` (your user file, not the one in the repo):
+
+```properties
+org.gradle.java.home=/Applications/Android Studio.app/Contents/jbr/Contents/Home
+```
+
+A Java toolchain block in the build would not help here: toolchains pick the JDK that compiles
+the code, not the JDK Gradle itself runs on. CI pins Temurin 17 for the same reason.
 
 Deploying to the robot is the green Run button in Android Studio.
 
