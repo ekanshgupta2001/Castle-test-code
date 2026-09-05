@@ -71,7 +71,7 @@ public abstract class MatchOpMode extends OpMode {
     protected double loopMs = 0;
     /** Loop-time statistics for the whole run: p95, max, spike count. */
     protected final LoopTimer loopStats = new LoopTimer();
-    /** One timestamp per loop, so nothing re-reads the clock mid-cycle. */
+    /** One timestamp per loop, from the robot's {@code Clock}, so nothing re-reads it mid-cycle. */
     protected long nowMs = 0;
 
     private final ElapsedTime loopTimer = new ElapsedTime();
@@ -155,7 +155,7 @@ public abstract class MatchOpMode extends OpMode {
         loopMs = loopTimer.milliseconds();
         loopTimer.reset();
         loopStats.record(loopMs);
-        nowMs = System.currentTimeMillis();
+        nowMs = robot.getClock().nowMs();
 
         robot.readSensors();          // 1. observe
         robot.updateLocalization();   //    blend any AprilTag fix into the pose estimate

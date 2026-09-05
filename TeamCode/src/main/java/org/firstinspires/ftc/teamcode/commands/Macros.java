@@ -67,10 +67,10 @@ public class Macros {
     public enum Outcome { IDLE, RUNNING, SUCCESS, TIMED_OUT, NO_TARGET, CANCELLED }
 
     private final Robot robot;
-    private volatile Outcome outcome = Outcome.IDLE;
-    private volatile String activeName = "idle";
+    private Outcome outcome = Outcome.IDLE;
+    private String activeName = "idle";
     /** Whether the intake was already loaded when the current macro began. See {@link #collectPollen}. */
-    private volatile boolean hadPollenAtStart = false;
+    private boolean hadPollenAtStart = false;
 
     public Macros(Robot robot) {
         this.robot = robot;

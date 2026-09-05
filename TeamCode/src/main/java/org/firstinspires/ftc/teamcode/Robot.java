@@ -15,8 +15,11 @@ import org.firstinspires.ftc.teamcode.subsystems.templates.ExampleLift;
 import org.firstinspires.ftc.teamcode.util.MatchClock;
 import org.firstinspires.ftc.teamcode.util.field.PoseFusion;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -71,6 +74,9 @@ public class Robot {
      */
     private MatchClock matchClock = null;
 
+    /** Where every timestamp on the robot comes from. Injected so the loop logic is testable. */
+    private final Clock clock;
+
     private final List<LynxModule> hubs;
     private final List<VoltageSensor> voltageSensors;
 
@@ -78,7 +84,12 @@ public class Robot {
     private long lastVoltageSampleMs = 0;
 
     public Robot(HardwareMap hardwareMap) {
+        this(hardwareMap, Clock.system());
+    }
+
+    public Robot(HardwareMap hardwareMap, Clock clock) {
         Hardware.reset();
+        this.clock = clock;
 
         // MANUAL bulk caching batches every encoder/current read into one bus transaction per loop.
         // Without it each getCurrent()/getVelocity() is its own USB round-trip, and the intake alone
@@ -96,14 +107,39 @@ public class Robot {
             voltageSensors.add(sensor);
         }
 
-        drivetrain = new Drivetrain(hardwareMap);
+        drivetrain = new Drivetrain(hardwareMap, clock);
         limelight = new Limelight(hardwareMap);
         colorSensor = new ColorSensor(hardwareMap);
-        intake = new Intake(hardwareMap);
-        lift = new ExampleLift(hardwareMap);
+        intake = new Intake(hardwareMap, HardwareNames.INTAKE_MOTOR, clock);
+        lift = new ExampleLift(hardwareMap, clock);
         intake.setCapturedSupplier(this::pollenAtColorSensor);
 
         macros = new Macros(this);
+    }
+
+    /**
+     * Composes already-built subsystems. For tests, and for any robot whose hardware is resolved
+     * somewhere other than the hardware map. No hubs or voltage sensors are known, so bulk caching
+     * is untouched and {@link #getBatteryVolts()} reads 0. Does not reset the {@link Hardware}
+     * registry, since the subsystems were constructed before this call.
+     */
+    public Robot(Drivetrain drivetrain, Limelight limelight, ColorSensor colorSensor,
+                 Intake intake, ExampleLift lift, Clock clock) {
+        this.clock = clock;
+        hubs = Collections.emptyList();
+        voltageSensors = Collections.emptyList();
+        this.drivetrain = drivetrain;
+        this.limelight = limelight;
+        this.colorSensor = colorSensor;
+        this.intake = intake;
+        this.lift = lift;
+        intake.setCapturedSupplier(this::pollenAtColorSensor);
+        macros = new Macros(this);
+    }
+
+    /** The clock every timestamp on the robot comes from. */
+    public Clock getClock() {
+        return clock;
     }
 
     /** Names of hardware devices missing from the robot configuration. Empty means all present. */
@@ -123,7 +159,7 @@ public class Robot {
         limelight.update();
         colorSensor.update();
 
-        long now = System.currentTimeMillis();
+        long now = clock.nowMs();
         if (matchClock != null) matchClock.update(now);
         sampleBattery(now);
     }
@@ -137,7 +173,7 @@ public class Robot {
         matchClock = period == MatchClock.Period.AUTONOMOUS
                 ? MatchClock.forAutonomous()
                 : MatchClock.forTeleop();
-        matchClock.start(System.currentTimeMillis());
+        matchClock.start(clock.nowMs());
     }
 
     /**
@@ -230,7 +266,7 @@ public class Robot {
 
         Pose vision = limelight.getBotposeAsPedroPose();   // already null unless it is trustworthy
         Pose corrected = poseFusion.update(
-                System.currentTimeMillis(), odometry, vision, limelight.getVisionLatencyMs());
+                clock.nowMs(), odometry, vision, limelight.getVisionLatencyMs());
 
         // The fusion contract requires writing the result back - its delta bookkeeping assumes the
         // returned pose became the follower's new baseline.

@@ -18,6 +18,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.util.JamDetector;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
 import java.util.function.BooleanSupplier;
 
@@ -70,6 +71,7 @@ public class Intake {
     public enum Mode { IDLE, INTAKING, OUTTAKING, EJECTING, HOLDING }
 
     private final DcMotorEx motor;
+    private final Clock clock;
     private double targetVelocity = 0;
     private Mode mode = Mode.IDLE;
     private boolean hasPollen = false;
@@ -83,7 +85,20 @@ public class Intake {
     }
 
     public Intake(HardwareMap hardwareMap, String name) {
-        motor = Hardware.get(hardwareMap, DcMotorEx.class, name);
+        this(hardwareMap, name, Clock.system());
+    }
+
+    public Intake(HardwareMap hardwareMap, String name, Clock clock) {
+        this(Hardware.get(hardwareMap, DcMotorEx.class, name), clock);
+    }
+
+    /**
+     * Builds on an already-resolved motor, or {@code null} for "not fitted". Tests inject a fake
+     * motor and a fake clock here; the hardware-map constructors above all end up in this one.
+     */
+    public Intake(DcMotorEx motor, Clock clock) {
+        this.motor = motor;
+        this.clock = clock;
         if (motor == null) return;
         motor.setDirection(DcMotorSimple.Direction.FORWARD);
         motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -182,7 +197,7 @@ public class Intake {
     }
 
     public boolean isUnjamming() {
-        return jamDetector.isUnjamming(System.currentTimeMillis());
+        return jamDetector.isUnjamming(clock.nowMs());
     }
 
     public int getUnjamAttempts() {
@@ -196,7 +211,7 @@ public class Intake {
 
     public void update() {
         if (motor == null) return;
-        long now = System.currentTimeMillis();
+        long now = clock.nowMs();
 
         if (mode == Mode.INTAKING && !hasPollen && capturedSupplier.getAsBoolean()) {
             hasPollen = true;

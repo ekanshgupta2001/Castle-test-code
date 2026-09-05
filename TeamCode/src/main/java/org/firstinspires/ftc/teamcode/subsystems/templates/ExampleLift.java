@@ -3,9 +3,11 @@ package org.firstinspires.ftc.teamcode.subsystems.templates;
 import static com.pedropathing.ivy.groups.Groups.sequential;
 
 import com.pedropathing.ivy.Command;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
 /**
  * Worked example: a two-stage scoring mechanism built entirely from the templates.
@@ -68,7 +70,12 @@ public class ExampleLift {
     private final PositionalServo<Grip> claw;
 
     public ExampleLift(HardwareMap hardwareMap) {
-        lift = new PositionalMotor<>(hardwareMap, HardwareNames.LIFT_MOTOR, Level.class)
+        this(hardwareMap, Clock.system());
+    }
+
+    public ExampleLift(HardwareMap hardwareMap, Clock clock) {
+        lift = new PositionalMotor<>(hardwareMap, HardwareNames.LIFT_MOTOR, Level.class,
+                DcMotorSimple.Direction.FORWARD, clock)
                 .preset(Level.DOWN, TICKS_DOWN)
                 .preset(Level.LOW, TICKS_LOW)
                 .preset(Level.HIGH, TICKS_HIGH)

@@ -1,8 +1,5 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
-import static com.pedropathing.ivy.commands.Commands.instant;
-import static com.pedropathing.ivy.groups.Groups.sequential;
-
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.control.PIDFController;
@@ -12,19 +9,19 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.BlockedBehavior;
 import com.pedropathing.ivy.behaviors.EndCondition;
 import com.pedropathing.ivy.behaviors.InterruptedBehavior;
-import com.pedropathing.ivy.pedro.PedroCommands;
 import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 import org.firstinspires.ftc.teamcode.util.math.Angles;
+import org.firstinspires.ftc.teamcode.util.time.Clock;
 
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 /**
- * Wraps the Pedro {@link Follower}: teleop driving, pose access, and path control.
+ * Wraps the Pedro follower: teleop driving, pose access, and path control.
  *
  * <p>Two Pedro modes share this one object. In <b>teleop mode</b> the follower consumes stick
  * vectors; in <b>path mode</b> it drives itself along a {@link PathChain} and ignores the sticks.
@@ -38,6 +35,14 @@ import java.util.function.Supplier;
  * {@link InterruptedBehavior#SUSPEND}, so scheduling any macro automatically parks driver control
  * and ending the macro automatically restores it. That is the whole cancellation story — there is
  * no flag to remember to clear, and no way for two commands to fight over the motors.
+ *
+ * <h2>Testability</h2>
+ *
+ * All motion goes through {@link PathFollower}, a thin interface over the follower, and all time
+ * comes from a {@link Clock}. Both are injectable, so every command below runs on the JVM against
+ * a fake follower and a fake clock. Callers that need Pedro's full API (path building, error
+ * readouts for the logger) use {@link #getFollower()}, which is null when the drivetrain was built
+ * on anything other than a real follower.
  */
 @Configurable
 public class Drivetrain {
@@ -65,15 +70,18 @@ public class Drivetrain {
     /**
      * Minimum time a started path must run before it may report complete.
      *
-     * <p>{@code follower.isBusy()} is not guaranteed to be true on the same tick that
-     * {@code followPath()} was called. Without this guard a path command can satisfy
-     * {@code !isFollowingPath()} on its very first {@code done()} check and finish instantly —
-     * which looks like a path that ran perfectly and took zero time. Same reasoning, and the same
-     * fix, as {@code PositionalMotor.MIN_MOVE_MS}.
+     * <p>Guards against a path (or turn) that the follower considers finished on its very first
+     * tick — a zero-length path, or a turn already within tolerance — reading as a perfect,
+     * zero-time run. Same reasoning, and the same fix, as {@code PositionalMotor.MIN_MOVE_MS}.
      */
     public static long MIN_PATH_MS = 60;
 
-    private final Follower follower;
+    /** Null when the drivetrain could not be built; every motion call then no-ops. */
+    private final PathFollower follower;
+    /** The raw Pedro follower for callers needing its full API. Null under test. */
+    private final Follower pedro;
+    private final Clock clock;
+
     private boolean fieldCentric = true;
     /** Tracks whether the follower is currently accepting stick vectors. See {@link #engageTeleop}. */
     private boolean teleopEngaged = false;
@@ -84,6 +92,11 @@ public class Drivetrain {
     private Double heldHeading = null;
 
     public Drivetrain(HardwareMap hardwareMap) {
+        this(hardwareMap, Clock.system());
+    }
+
+    public Drivetrain(HardwareMap hardwareMap, Clock clock) {
+        this.clock = clock;
         Follower built = null;
         try {
             built = Constants.createFollower(hardwareMap);
@@ -92,7 +105,18 @@ public class Drivetrain {
             // used to throw straight out of Robot's constructor and kill the OpMode.
             Hardware.recordFailure("drivetrain", "createFollower failed: " + e.getMessage());
         }
-        follower = built;
+        pedro = built;
+        follower = built == null ? null : new PedroPathFollower(built);
+    }
+
+    /**
+     * Builds on an already-constructed follower. Tests inject a fake here; a robot with a
+     * differently-built Pedro follower can pass a {@link PedroPathFollower}.
+     */
+    public Drivetrain(PathFollower follower, Clock clock) {
+        this.clock = clock;
+        this.follower = follower;
+        this.pedro = follower instanceof PedroPathFollower ? ((PedroPathFollower) follower).raw() : null;
     }
 
     /** False when the drivetrain could not be built. All motion calls then no-op. */
@@ -166,8 +190,12 @@ public class Drivetrain {
         return follower == null ? null : follower.getPose();
     }
 
+    /**
+     * The raw Pedro follower, for path building and diagnostics, or {@code null} when the
+     * drivetrain is unavailable or was built on a non-Pedro {@link PathFollower}.
+     */
     public Follower getFollower() {
-        return follower;
+        return pedro;
     }
 
     public void followPath(PathChain path, boolean holdEnd) {
@@ -185,6 +213,12 @@ public class Drivetrain {
      */
     public boolean isFollowingPath() {
         return follower != null && follower.isBusy();
+    }
+
+    /** Whether the robot is within the given distance of a pose on each axis. False when unavailable. */
+    public boolean atPose(Pose target, double xToleranceInches, double yToleranceInches) {
+        return follower != null && target != null
+                && follower.atPose(target, xToleranceInches, yToleranceInches);
     }
 
     /**
@@ -330,7 +364,7 @@ public class Drivetrain {
      * endpoints are fixed and known in advance.
      */
     public Command followPathCommand(PathChain path, boolean holdEnd) {
-        if (follower == null || path == null) return Command.build().setDone(() -> true);
+        if (follower == null || path == null) return finishedCommand();
         return followLazyCommand(() -> path, holdEnd);
     }
 
@@ -361,22 +395,23 @@ public class Drivetrain {
 
         return Command.build()
                 .setStart(() -> {
-                    startedAt[0] = System.currentTimeMillis();
+                    startedAt[0] = clock.nowMs();
                     PathChain path = pathSupplier.get();
-                    started[0] = path != null;
+                    started[0] = path != null && follower != null;
                     if (started[0]) followPath(path, holdEnd);
                 })
                 .setDone(() -> {
                     // No target: finish at once rather than sitting still for MIN_PATH_MS. This is
                     // the documented "supplier returned null" behaviour that Macros relies on.
                     if (!started[0]) return true;
-                    if (System.currentTimeMillis() - startedAt[0] < MIN_PATH_MS) return false;
+                    if (clock.nowMs() - startedAt[0] < MIN_PATH_MS) return false;
                     return !isFollowingPath();
                 })
                 .setEnd(ec -> {
                     // A natural end while asked to hold leaves the follower holding. Everything
                     // else - interrupted, suspended, or a path that was not asked to hold - hands
                     // control back, because a follower left in path mode keeps driving itself.
+                    if (!started[0]) return;
                     if (ec != EndCondition.NATURALLY || !holdEnd) cancelPath();
                 })
                 .requiring(this);
@@ -385,15 +420,23 @@ public class Drivetrain {
     /**
      * Turns in place to an absolute field heading, then hands control back to the driver.
      *
-     * <p>Wrapped in a {@code sequential} so the teleop flag is cleared when the command
-     * <em>starts</em>, not when it is built - building a command must not change robot state.
+     * <p>Pedro's {@code turnTo} station-keeps at the new heading and clears {@code isBusy} on
+     * arrival; the {@code setEnd} then releases that hold, because a snap is something a driver
+     * does mid-drive and wants the sticks back from immediately.
      */
     public Command turnToCommand(double headingRadians) {
-        if (follower == null) return Command.build().setDone(() -> true);
-        return sequential(
-                instant(() -> teleopEngaged = false),
-                PedroCommands.turnTo(follower, headingRadians).setEnd(ec -> cancelPath())
-        ).requiring(this);
+        if (follower == null) return finishedCommand();
+        final long[] startedAt = new long[1];
+        return Command.build()
+                .setStart(() -> {
+                    // Cleared at start, not at build: building a command must not change state.
+                    teleopEngaged = false;
+                    startedAt[0] = clock.nowMs();
+                    follower.turnTo(headingRadians);
+                })
+                .setDone(() -> clock.nowMs() - startedAt[0] >= MIN_PATH_MS && !follower.isBusy())
+                .setEnd(ec -> cancelPath())
+                .requiring(this);
     }
 
     /**
@@ -404,7 +447,7 @@ public class Drivetrain {
      * which for a robot already sitting still is immediately.
      */
     public Command holdCommand() {
-        if (follower == null) return Command.build().setDone(() -> true);
+        if (follower == null) return finishedCommand();
         return Command.build()
                 .setStart(() -> {
                     teleopEngaged = false;
@@ -414,5 +457,10 @@ public class Drivetrain {
                 .setDone(() -> false)
                 .setEnd(ec -> cancelPath())
                 .requiring(this);
+    }
+
+    /** A command that completes on its first tick. Returned when there is no drivetrain to move. */
+    private static Command finishedCommand() {
+        return Command.build().setDone(() -> true);
     }
 }
