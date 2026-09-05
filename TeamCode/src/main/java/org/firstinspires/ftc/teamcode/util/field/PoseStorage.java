@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.field;
 
 import com.pedropathing.geometry.Pose;
 
@@ -30,9 +30,6 @@ public final class PoseStorage {
         if (start != null) startPosition = start;
     }
 
-    public static void savePose(Pose currentPose) {
-        if (currentPose != null) pose = currentPose;
-    }
 
     /** The pose left by the previous OpMode, or {@code null} if there isn't one. */
     public static Pose getPose() {
@@ -42,6 +39,11 @@ public final class PoseStorage {
     /** True when a previous OpMode left a usable pose behind. */
     public static boolean hasPose() {
         return pose != null;
+    }
+
+    /** True when autonomous ran and recorded which alliance we are on. */
+    public static boolean hasAlliance() {
+        return alliance != null;
     }
 
     /** The alliance chosen in autonomous, or {@code null} if autonomous never ran. */

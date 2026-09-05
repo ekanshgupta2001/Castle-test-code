@@ -13,19 +13,21 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-import org.firstinspires.ftc.teamcode.util.Hardware;
-import org.firstinspires.ftc.teamcode.util.MedianFilter;
-import org.firstinspires.ftc.teamcode.util.VisionMath;
+import org.firstinspires.ftc.teamcode.util.field.FieldConstants;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
+import org.firstinspires.ftc.teamcode.util.math.MedianFilter;
+import org.firstinspires.ftc.teamcode.util.math.Angles;
+import org.firstinspires.ftc.teamcode.util.math.VisionMath;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 @Configurable
 public class Limelight {
-    // Field is 144" square; Limelight botpose origin is field center, Pedro origin is corner.
-    public static double FIELD_HALF_INCHES = 72.0;
+    // The Limelight reports botpose relative to the FIELD CENTRE; Pedro's origin is a field
+    // CORNER. Converting means adding half the field to both axes. That half-field figure comes
+    // from FieldConstants so there is exactly one place that knows how big the field is.
     public static double BOTPOSE_HEADING_OFFSET_RAD = 0.0;
 
     public static int APRILTAG_PIPELINE_INDEX = 0;
@@ -55,12 +57,13 @@ public class Limelight {
     private LLResult latestResult;
     private int currentPipeline;
     private List<LLResultTypes.ColorResult> pollenDetections = Collections.emptyList();
+    private LLResultTypes.ColorResult primaryPollen = null;
 
     private final MedianFilter txFilter = new MedianFilter(DETECTION_WINDOW);
     private final MedianFilter tyFilter = new MedianFilter(DETECTION_WINDOW);
 
     public Limelight(HardwareMap hardwareMap) {
-        this(hardwareMap, "limelight", APRILTAG_PIPELINE_INDEX);
+        this(hardwareMap, HardwareNames.LIMELIGHT, APRILTAG_PIPELINE_INDEX);
     }
 
     public Limelight(HardwareMap hardwareMap, String name, int pipeline) {
@@ -88,6 +91,7 @@ public class Limelight {
         latestResult = limelight.getLatestResult();
         if (latestResult == null || !latestResult.isValid()) {
             pollenDetections = Collections.emptyList();
+            primaryPollen = null;
             txFilter.reset();
             tyFilter.reset();
             return;
@@ -96,24 +100,25 @@ public class Limelight {
         List<LLResultTypes.ColorResult> colors = latestResult.getColorResults();
         if (colors == null || colors.isEmpty()) {
             pollenDetections = Collections.emptyList();
+            primaryPollen = null;
             txFilter.reset();
             tyFilter.reset();
             return;
         }
 
-        // Sort largest-blob-first so "primary" is a property of this code rather than of whatever
-        // sort order happens to be configured in the Limelight web UI, which is invisible from here.
-        List<LLResultTypes.ColorResult> sorted = new ArrayList<>(colors);
-        Collections.sort(sorted, new Comparator<LLResultTypes.ColorResult>() {
-            @Override
-            public int compare(LLResultTypes.ColorResult a, LLResultTypes.ColorResult b) {
-                return Double.compare(b.getTargetArea(), a.getTargetArea());
-            }
-        });
-        pollenDetections = sorted;
+        // Pick the largest blob in a single pass. "Primary" is decided by this code rather than by
+        // whatever sort order happens to be set in the Limelight web UI, which is invisible from
+        // here — and a one-pass max costs no allocation, where copying and sorting the list every
+        // loop did, for an ordering nothing else ever reads.
+        pollenDetections = colors;
+        LLResultTypes.ColorResult largest = colors.get(0);
+        for (int i = 1; i < colors.size(); i++) {
+            if (colors.get(i).getTargetArea() > largest.getTargetArea()) largest = colors.get(i);
+        }
+        primaryPollen = largest;
 
-        txFilter.add(sorted.get(0).getTargetXDegrees());
-        tyFilter.add(sorted.get(0).getTargetYDegrees());
+        txFilter.add(largest.getTargetXDegrees());
+        tyFilter.add(largest.getTargetYDegrees());
     }
 
     public LLResult getLatestResult() {
@@ -158,7 +163,7 @@ public class Limelight {
      * early-return below short-circuit every future call after a single failed switch, leaving the
      * camera permanently on the wrong pipeline with no retry.
      */
-    public boolean switchPipeline(int pipeline) {
+    private boolean switchPipeline(int pipeline) {
         if (limelight == null) return false;
         if (pipeline == currentPipeline) return true;
         boolean ok;
@@ -173,8 +178,16 @@ public class Limelight {
             // caches so nothing reads the old pipeline's data as if it were the new pipeline's.
             latestResult = null;
             pollenDetections = Collections.emptyList();
+            primaryPollen = null;
         }
         return ok;
+    }
+
+    /** Which pipeline the camera is on, named rather than numbered, for telemetry. */
+    public String getPipelineName() {
+        if (currentPipeline == APRILTAG_PIPELINE_INDEX) return "apriltag";
+        if (currentPipeline == POLLEN_PIPELINE_INDEX) return "pollen";
+        return "pipeline " + currentPipeline;
     }
 
     public int getPipelineIndex() {
@@ -215,9 +228,9 @@ public class Limelight {
         Position pos = bp.getPosition().toUnit(DistanceUnit.INCH);
         if (Double.isNaN(pos.x) || Double.isNaN(pos.y)) return null;
 
-        double x = pos.x + FIELD_HALF_INCHES;
-        double y = pos.y + FIELD_HALF_INCHES;
-        if (!isInsideField(x, y)) return null;
+        double x = pos.x + FieldConstants.FIELD_CENTER_INCHES;
+        double y = pos.y + FieldConstants.FIELD_CENTER_INCHES;
+        if (!FieldConstants.isInsideField(x, y)) return null;
 
         YawPitchRollAngles ori = bp.getOrientation();
         double yaw = ori.getYaw(AngleUnit.RADIANS) + BOTPOSE_HEADING_OFFSET_RAD;
@@ -240,10 +253,6 @@ public class Limelight {
         return (long) (latestResult.getCaptureLatency() + latestResult.getTargetingLatency());
     }
 
-    public static boolean isInsideField(double x, double y) {
-        double side = FIELD_HALF_INCHES * 2;
-        return x >= 0 && x <= side && y >= 0 && y <= side;
-    }
 
     // ---- Pollen color-blob detection ----
 
@@ -259,28 +268,28 @@ public class Limelight {
         return !pollenDetections.isEmpty();
     }
 
-    public int getPollenCount() {
+    private int getPollenCount() {
         return pollenDetections.size();
     }
 
-    public List<LLResultTypes.ColorResult> getPollenDetections() {
+    private List<LLResultTypes.ColorResult> getPollenDetections() {
         return Collections.unmodifiableList(pollenDetections);
     }
 
-    public LLResultTypes.ColorResult getPrimaryPollen() {
-        return pollenDetections.isEmpty() ? null : pollenDetections.get(0);
+    private LLResultTypes.ColorResult getPrimaryPollen() {
+        return primaryPollen;
     }
 
-    public double getPollenTx() {
-        return pollenDetections.isEmpty() ? 0 : pollenDetections.get(0).getTargetXDegrees();
+    private double getPollenTx() {
+        return primaryPollen == null ? 0 : primaryPollen.getTargetXDegrees();
     }
 
-    public double getPollenTy() {
-        return pollenDetections.isEmpty() ? 0 : pollenDetections.get(0).getTargetYDegrees();
+    private double getPollenTy() {
+        return primaryPollen == null ? 0 : primaryPollen.getTargetYDegrees();
     }
 
     /** The camera's physical mounting, assembled from the tunable constants above. */
-    public static VisionMath.Mount mount() {
+    private static VisionMath.Mount mount() {
         return new VisionMath.Mount(CAMERA_HEIGHT_INCHES, CAMERA_PITCH_DEGREES,
                 CAMERA_FORWARD_OFFSET_INCHES, CAMERA_LEFT_OFFSET_INCHES, CAMERA_YAW_OFFSET_DEGREES);
     }
@@ -353,14 +362,14 @@ public class Limelight {
         if (robotFrame == null) return null;
 
         // Face the piece itself, but stop short of it.
-        double heading = VisionMath.headingToward(
+        double heading = Angles.headingToward(
                 robotPose.getHeading(), robotFrame[0], robotFrame[1]);
 
         double[] approach = VisionMath.applyStandoff(robotFrame, PICKUP_STANDOFF_INCHES);
         double[] field = VisionMath.toFieldFrame(robotPose.getX(), robotPose.getY(),
                 robotPose.getHeading(), approach[0], approach[1]);
 
-        if (!isInsideField(field[0], field[1])) return null;
+        if (!FieldConstants.isInsideField(field[0], field[1])) return null;
         return new Pose(field[0], field[1], heading);
     }
 }

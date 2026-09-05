@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import com.bylazar.configurables.annotations.Configurable;
+import com.pedropathing.control.PIDFCoefficients;
+import com.pedropathing.control.PIDFController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.ivy.Command;
@@ -10,7 +13,8 @@ import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
-import org.firstinspires.ftc.teamcode.util.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.math.Angles;
 
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
@@ -31,13 +35,49 @@ import java.util.function.Supplier;
  * and ending the macro automatically restores it. That is the whole cancellation story — there is
  * no flag to remember to clear, and no way for two commands to fight over the motors.
  */
+@Configurable
 public class Drivetrain {
     public static int DRIVER_CONTROL_PRIORITY = -1;
+
+    /**
+     * Whether the robot holds its heading when the driver is not turning.
+     *
+     * <p>Worth knowing what this depends on: heading hold is only as good as the localizer's
+     * heading. If localisation has drifted, this will actively rotate the robot toward a heading
+     * that no longer means what it should. That is what {@code Y} (reset heading) is for, and why
+     * this can be switched off.
+     */
+    public static boolean HEADING_HOLD_ENABLED = true;
+    /** Turn-stick magnitude above which the driver is considered to be steering. */
+    public static double HEADING_HOLD_STICK_DEADBAND = 0.05;
+    /** Error is in RADIANS here, so a gain of 1.5 maps 10 degrees (0.17 rad) to ~0.26 turn power. */
+    public static double HEADING_HOLD_P = 1.5;
+    public static double HEADING_HOLD_I = 0.0;
+    public static double HEADING_HOLD_D = 0.08;
+    public static double HEADING_HOLD_MAX_TURN = 0.4;
+    /** Below this error, stop correcting — otherwise the robot hunts around the setpoint. */
+    public static double HEADING_HOLD_TOLERANCE_RAD = Math.toRadians(1.0);
+
+    /**
+     * Minimum time a started path must run before it may report complete.
+     *
+     * <p>{@code follower.isBusy()} is not guaranteed to be true on the same tick that
+     * {@code followPath()} was called. Without this guard a path command can satisfy
+     * {@code !isFollowingPath()} on its very first {@code done()} check and finish instantly —
+     * which looks like a path that ran perfectly and took zero time. Same reasoning, and the same
+     * fix, as {@code PositionalMotor.MIN_MOVE_MS}.
+     */
+    public static long MIN_PATH_MS = 60;
 
     private final Follower follower;
     private boolean fieldCentric = true;
     /** Tracks whether the follower is currently accepting stick vectors. See {@link #engageTeleop}. */
     private boolean teleopEngaged = false;
+
+    private final PIDFController headingController =
+            new PIDFController(new PIDFCoefficients(HEADING_HOLD_P, HEADING_HOLD_I, HEADING_HOLD_D, 0));
+    /** The heading being held, in radians, or null when the driver is steering. */
+    private Double heldHeading = null;
 
     public Drivetrain(HardwareMap hardwareMap) {
         Follower built = null;
@@ -159,6 +199,72 @@ public class Drivetrain {
         if (follower != null) follower.setMaxPower(power);
     }
 
+    // ---- Heading hold ----
+
+    /**
+     * Replaces a centred turn stick with a correction back toward the held heading.
+     *
+     * <p>A mecanum robot does not track straight on its own: uneven friction, a knocked wheel, or
+     * contact with another robot all rotate it, and without correction the driver spends the whole
+     * match nudging the turn stick to stay pointed where they already were.
+     *
+     * <p><b>It must never fight the driver.</b> Any deliberate turn input hands control straight
+     * back and re-captures the heading on release, so the robot holds wherever the driver left it
+     * rather than snapping back to where they started turning.
+     *
+     * @param turn the driver's raw turn request
+     * @return the turn value to actually command
+     */
+    private double applyHeadingHold(double turn) {
+        if (!HEADING_HOLD_ENABLED || follower == null) {
+            heldHeading = null;
+            return turn;
+        }
+
+        if (Math.abs(turn) >= HEADING_HOLD_STICK_DEADBAND) {
+            // Driver is steering. Drop the setpoint so it is re-captured when they let go.
+            heldHeading = null;
+            return turn;
+        }
+
+        Pose pose = follower.getPose();
+        if (pose == null) {
+            heldHeading = null;
+            return turn;
+        }
+
+        if (heldHeading == null) {
+            heldHeading = pose.getHeading();
+            headingController.reset();
+            headingController.setCoefficients(
+                    new PIDFCoefficients(HEADING_HOLD_P, HEADING_HOLD_I, HEADING_HOLD_D, 0));
+            return 0;
+        }
+
+        // Fed as an error rather than a position, so the controller never sees the raw angles and
+        // the 0/2pi seam cannot produce a full-speed spin the short way round.
+        double error = Angles.angleError(pose.getHeading(), heldHeading);
+        if (Math.abs(error) <= HEADING_HOLD_TOLERANCE_RAD) return 0;
+
+        headingController.updateError(error);
+        double correction = headingController.run();
+        return Math.max(-HEADING_HOLD_MAX_TURN, Math.min(HEADING_HOLD_MAX_TURN, correction));
+    }
+
+    /** Forgets the held heading, so the next centred-stick loop captures a fresh one. */
+    public void releaseHeadingHold() {
+        heldHeading = null;
+    }
+
+    public boolean isHeadingHoldActive() {
+        return heldHeading != null;
+    }
+
+    /** The heading being held in radians, or NaN when not holding. */
+    public double getHeldHeading() {
+        return heldHeading == null ? Double.NaN : heldHeading;
+    }
+
     public void update() {
         if (follower != null) follower.update();
     }
@@ -183,10 +289,14 @@ public class Drivetrain {
                 .setExecute(() -> {
                     if (isFollowingPath()) return;
                     engageTeleop();
-                    drive(forward.getAsDouble(), strafe.getAsDouble(), turn.getAsDouble());
+                    drive(forward.getAsDouble(), strafe.getAsDouble(),
+                            applyHeadingHold(turn.getAsDouble()));
                 })
                 .setDone(() -> false)
-                .setEnd(ec -> drive(0, 0, 0))
+                .setEnd(ec -> {
+                    releaseHeadingHold();
+                    drive(0, 0, 0);
+                })
                 .setPriority(DRIVER_CONTROL_PRIORITY)
                 .setInterruptedBehavior(InterruptedBehavior.SUSPEND)
                 .setBlockedBehavior(BlockedBehavior.QUEUE)
@@ -219,12 +329,25 @@ public class Drivetrain {
      * immediately rather than moving the robot somewhere arbitrary.
      */
     public Command followLazyCommand(Supplier<PathChain> pathSupplier, boolean holdEnd) {
+        // Boxed so the lambdas below share one instance of each; the command may be built once and
+        // run more than once, and setStart resets both.
+        final boolean[] started = new boolean[1];
+        final long[] startedAt = new long[1];
+
         return Command.build()
                 .setStart(() -> {
+                    startedAt[0] = System.currentTimeMillis();
                     PathChain path = pathSupplier.get();
-                    if (path != null) followPath(path, holdEnd);
+                    started[0] = path != null;
+                    if (started[0]) followPath(path, holdEnd);
                 })
-                .setDone(() -> !isFollowingPath())
+                .setDone(() -> {
+                    // No target: finish at once rather than sitting still for MIN_PATH_MS. This is
+                    // the documented "supplier returned null" behaviour that Macros relies on.
+                    if (!started[0]) return true;
+                    if (System.currentTimeMillis() - startedAt[0] < MIN_PATH_MS) return false;
+                    return !isFollowingPath();
+                })
                 .setEnd(ec -> cancelPath())
                 .requiring(this);
     }

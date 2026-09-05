@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.math;
 
 /**
  * Turns a camera bearing into a field position. Pure math, no hardware — so it is unit-tested.
@@ -151,31 +151,5 @@ public final class VisionMath {
         double dx = forward * cosH - left * sinH;
         double dy = forward * sinH + left * cosH;
         return new double[] {robotX + dx, robotY + dy};
-    }
-
-    /**
-     * Heading that points from the robot toward a robot-frame offset, normalised to [0, 2pi).
-     *
-     * <p>Normalisation matters for consistency: {@code Math.atan2} yields (-pi, pi], while every
-     * {@code Pose} Pedro hands back is in [0, 2pi). Mixing the two breaks any naive heading
-     * comparison, even though the path follower itself takes the shortest turn either way.
-     */
-    public static double headingToward(double robotHeadingRad, double forward, double left) {
-        return normalizeAngle(robotHeadingRad + Math.atan2(left, forward));
-    }
-
-    /** Wraps an angle into [0, 2pi), matching Pedro's convention. */
-    public static double normalizeAngle(double radians) {
-        double a = radians % (2 * Math.PI);
-        if (a < 0) a += 2 * Math.PI;
-        return a;
-    }
-
-    /** Shortest signed turn from {@code from} to {@code to}, in (-pi, pi]. */
-    public static double angleError(double fromRad, double toRad) {
-        double diff = normalizeAngle(toRad) - normalizeAngle(fromRad);
-        if (diff > Math.PI) diff -= 2 * Math.PI;
-        if (diff <= -Math.PI) diff += 2 * Math.PI;
-        return diff;
     }
 }

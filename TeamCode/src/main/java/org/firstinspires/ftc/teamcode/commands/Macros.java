@@ -17,7 +17,7 @@ import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.subsystems.Limelight;
-import org.firstinspires.ftc.teamcode.util.VisionMath;
+import org.firstinspires.ftc.teamcode.util.math.Angles;
 
 /**
  * One-button robot actions, composed from subsystem commands.
@@ -51,6 +51,9 @@ public class Macros {
     public static long APPROACH_TIMEOUT_MS = 4000;
     public static long ALIGN_TIMEOUT_MS = 1500;
     public static long RELOCALIZE_TIMEOUT_MS = 1500;
+    public static long SNAP_TIMEOUT_MS = 1500;
+    /** How close the snap has to get before it counts as having arrived. */
+    public static double SNAP_TOLERANCE_DEGREES = 3.0;
 
     // Vision-servo gains. Error is in DEGREES and output is a turn command in [-1, 1], so P is
     // small by construction: 0.02 means a 10-degree error asks for 20% turn power.
@@ -224,6 +227,40 @@ public class Macros {
         return Math.max(-limit, Math.min(limit, value));
     }
 
+    /**
+     * Rotates to an absolute field heading and stops.
+     *
+     * <p>Not a vision macro — the target is a fixed direction, so this works with no camera and is
+     * the one macro that still does something useful with the Limelight unplugged. Bound to the
+     * driver's dpad for the field cardinals, which is what a driver reaches for when they have been
+     * spun around during a scrum and want to face the goal again without hunting for it.
+     *
+     * <p>Aborts exactly like every other macro: BACK, or a touch of the sticks.
+     *
+     * @param headingRadians absolute field heading, in Pedro's convention (0 = +X, CCW positive)
+     */
+    public Command snapToHeading(double headingRadians) {
+        String name = String.format(java.util.Locale.US, "snapTo %.0f",
+                Math.toDegrees(Angles.normalizeAngle(headingRadians)));
+        return sequential(
+                begin(name),
+                race(
+                        robot.drivetrain.turnToCommand(headingRadians),
+                        waitMs(SNAP_TIMEOUT_MS)
+                ),
+                finish(Outcome.SUCCESS, Outcome.TIMED_OUT, () -> atHeading(headingRadians))
+        );
+    }
+
+    /** Whether the robot is within {@link #SNAP_TOLERANCE_DEGREES} of an absolute heading. */
+    private boolean atHeading(double headingRadians) {
+        Pose pose = robot.drivetrain.getPose();
+        if (pose == null) return false;
+        double errorDegrees = Math.toDegrees(
+                Angles.angleError(pose.getHeading(), headingRadians));
+        return Math.abs(errorDegrees) <= SNAP_TOLERANCE_DEGREES;
+    }
+
     /** Switches to AprilTags and corrects the pose estimate, if a trustworthy fix is available. */
     public Command relocalize() {
         return sequential(
@@ -272,7 +309,7 @@ public class Macros {
         double[] robotFrame = robot.limelight.estimatePollenInRobotFrame();
         if (robotFrame == null) return null;
 
-        double heading = VisionMath.headingToward(
+        double heading = Angles.headingToward(
                 current.getHeading(), robotFrame[0], robotFrame[1]);
         Pose target = new Pose(current.getX(), current.getY(), heading);
 
@@ -282,11 +319,4 @@ public class Macros {
                 .build();
     }
 
-    /** Convenience for telemetry: which pipeline the camera is on right now. */
-    public String getPipelineName() {
-        int p = robot.limelight.getPipelineIndex();
-        if (p == Limelight.APRILTAG_PIPELINE_INDEX) return "apriltag";
-        if (p == Limelight.POLLEN_PIPELINE_INDEX) return "pollen";
-        return "pipeline " + p;
-    }
 }

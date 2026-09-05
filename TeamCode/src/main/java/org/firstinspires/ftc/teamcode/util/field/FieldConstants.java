@@ -1,7 +1,9 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.field;
 
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
+
+import org.firstinspires.ftc.teamcode.util.math.Angles;
 
 /**
  * Field geometry and alliance mirroring, in Pedro coordinates.
@@ -84,7 +86,7 @@ public final class FieldConstants {
         return new Pose(
                 FIELD_SIZE_INCHES - pose.getX(),
                 pose.getY(),
-                VisionMath.normalizeAngle(Math.PI - pose.getHeading()));
+                Angles.normalizeAngle(Math.PI - pose.getHeading()));
     }
 
     /** Reflects across the horizontal centre line {@code y = 72}; heading becomes {@code -h}. */
@@ -93,7 +95,7 @@ public final class FieldConstants {
         return new Pose(
                 pose.getX(),
                 FIELD_SIZE_INCHES - pose.getY(),
-                VisionMath.normalizeAngle(-pose.getHeading()));
+                Angles.normalizeAngle(-pose.getHeading()));
     }
 
     /** True when a coordinate pair lies on the field. Used to reject impossible vision fixes. */

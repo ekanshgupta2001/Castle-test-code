@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import static com.pedropathing.ivy.commands.Commands.conditional;
 import static com.pedropathing.ivy.commands.Commands.instant;
 import static com.pedropathing.ivy.commands.Commands.waitMs;
 import static com.pedropathing.ivy.commands.Commands.waitUntil;
@@ -61,7 +62,7 @@ public class ConceptCommands extends OpMode {
         telemetry.addLine("A = instant      B = wait 1s then run");
         telemetry.addLine("X = sequential   Y = parallel");
         telemetry.addLine("LB = race        RB = deadline");
-        telemetry.addLine("DPAD-UP = conditional   DPAD-DOWN = cancel everything");
+        telemetry.addLine("DPAD-UP = conditional   LB = conditional skip   DPAD-DOWN = cancel all");
         telemetry.addLine();
         telemetry.addData("Last scheduled", lastAction);
         telemetry.addData("Intake mode", robot.intake.getMode());
@@ -136,7 +137,26 @@ public class ConceptCommands extends OpMode {
             }));
         }
 
-        // ---- 8. cancelling ----
+        // ---- 8. the unless() trap ----
+        // Ivy gives every command a decorator that LOOKS like the way to skip work:
+        //
+        //     command.unless(() -> shouldSkip)
+        //
+        // Do not use it inside a group. It is conditional(cond, Command.NOOP, this), and NOOP is
+        // Command.build() with no setDone - so it inherits Ivy's default done-supplier of
+        // () -> false and NEVER FINISHES. Taking the skip path hangs the enclosing sequential for
+        // the rest of the match.
+        //
+        // Skip with an explicit no-op instead. instant() sets done to true, so it completes on its
+        // first tick. MainAuto.skipIfAnyLegMissed is the real use of this.
+        if (gamepad1.leftBumperWasPressed()) {
+            run("conditional skip", conditional(
+                    () -> robot.intake.hasPollen(),
+                    instant(() -> lastAction = "skipped: already carrying"),
+                    robot.intake.intakeCommand()));
+        }
+
+        // ---- 9. cancelling ----
         // reset() clears the scheduler outright. Note it does NOT call end() on running commands,
         // so anything needing cleanup should be cancelled individually instead.
         if (gamepad1.dpadDownWasPressed()) {

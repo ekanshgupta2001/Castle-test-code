@@ -15,7 +15,9 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
-import org.firstinspires.ftc.teamcode.util.Hardware;
+import org.firstinspires.ftc.teamcode.util.JamDetector;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
+import org.firstinspires.ftc.teamcode.util.hardware.HardwareNames;
 
 import java.util.function.BooleanSupplier;
 
@@ -73,12 +75,11 @@ public class Intake {
     private boolean hasPollen = false;
     private BooleanSupplier capturedSupplier = () -> false;
 
-    private long stallStartMs = 0;
-    private long unjamUntilMs = 0;
-    private int unjamAttempts = 0;
+    /** The stall/un-jam state machine. Lives in {@code util/} so it can be unit tested. */
+    private final JamDetector jamDetector = new JamDetector();
 
     public Intake(HardwareMap hardwareMap) {
-        this(hardwareMap, "IM");
+        this(hardwareMap, HardwareNames.INTAKE_MOTOR);
     }
 
     public Intake(HardwareMap hardwareMap, String name) {
@@ -109,9 +110,13 @@ public class Intake {
         // Any deliberate mode change abandons an in-progress unjam. Without this, re-pressing
         // intake within UNJAM_DURATION_MS would silently run the motor backwards instead.
         if (newMode != mode) {
-            unjamUntilMs = 0;
-            stallStartMs = 0;
-            if (newMode != Mode.INTAKING) unjamAttempts = 0;
+            if (newMode == Mode.INTAKING) {
+                // Re-entering intaking keeps the attempt count, so repeatedly mashing the button
+                // cannot bypass MAX_UNJAM_ATTEMPTS and cook a motor against a hard jam.
+                jamDetector.resetTiming();
+            } else {
+                jamDetector.reset();
+            }
         }
         mode = newMode;
         targetVelocity = ticksPerSec;
@@ -173,15 +178,20 @@ public class Intake {
      * reads false and {@link #isUnjamming()} reads true.
      */
     public boolean isStallSuspected() {
-        return stallStartMs != 0;
+        return jamDetector.isStallSuspected();
     }
 
     public boolean isUnjamming() {
-        return unjamUntilMs > System.currentTimeMillis();
+        return jamDetector.isUnjamming(System.currentTimeMillis());
     }
 
     public int getUnjamAttempts() {
-        return unjamAttempts;
+        return jamDetector.getAttempts();
+    }
+
+    /** True once anti-jam has exhausted {@link #MAX_UNJAM_ATTEMPTS} and stopped trying. */
+    public boolean hasGivenUpUnjamming() {
+        return jamDetector.hasGivenUp();
     }
 
     public void update() {
@@ -192,34 +202,18 @@ public class Intake {
             hasPollen = true;
         }
 
-        // Anti-jam applies to INTAKING only. It must NOT apply to HOLDING: holding a captured piece
-        // against a hard stop is, by definition, a stalled motor — so a sign-based check would see
-        // the hold current, "unjam", and spit the piece straight back out.
-        boolean antiJamEligible = ANTI_JAM_ENABLED
-                && mode == Mode.INTAKING
-                && unjamAttempts < MAX_UNJAM_ATTEMPTS;
+        // Pushed in every loop so live dashboard edits reach the detector.
+        jamDetector.configure(
+                STALL_CURRENT_AMPS, STALL_TIMEOUT_MS, UNJAM_DURATION_MS, MAX_UNJAM_ATTEMPTS);
 
-        if (antiJamEligible) {
-            if (isUnjamming()) {
-                motor.setVelocity(UNJAM_TICKS_PER_SEC);
-                return;
-            }
-            if (motor.getCurrent(CurrentUnit.AMPS) > STALL_CURRENT_AMPS) {
-                if (stallStartMs == 0) {
-                    stallStartMs = now;
-                } else if (now - stallStartMs >= STALL_TIMEOUT_MS) {
-                    unjamUntilMs = now + UNJAM_DURATION_MS;
-                    unjamAttempts++;
-                    stallStartMs = 0;
-                    motor.setVelocity(UNJAM_TICKS_PER_SEC);
-                    return;
-                }
-            } else {
-                stallStartMs = 0;
-                unjamAttempts = 0;
-            }
-        } else {
-            stallStartMs = 0;
+        // Anti-jam applies to INTAKING only. It must NOT apply to HOLDING: holding a captured piece
+        // against a hard stop is, by definition, a stalled motor — so a check that ran there would
+        // see the hold current, "unjam", and spit the piece straight back out.
+        boolean antiJamEligible = ANTI_JAM_ENABLED && mode == Mode.INTAKING;
+
+        if (jamDetector.update(now, antiJamEligible, motor.getCurrent(CurrentUnit.AMPS))) {
+            motor.setVelocity(UNJAM_TICKS_PER_SEC);
+            return;
         }
 
         motor.setVelocity(targetVelocity);
@@ -273,13 +267,6 @@ public class Intake {
         return race(run, waitMs(ms));
     }
 
-    /**
-     * Runs the intake until the captured-supplier fires. Late-binds the supplier, so a
-     * {@link #setCapturedSupplier} call after this command was built still takes effect.
-     */
-    public Command captureCommand() {
-        return captureCommand(() -> capturedSupplier.getAsBoolean());
-    }
 
     public Command captureCommand(BooleanSupplier captured) {
         return Command.build()

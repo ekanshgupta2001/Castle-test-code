@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.math;
 
 /**
  * Colour conversion and matching. Pure math, no hardware — so it is unit-testable on a laptop.

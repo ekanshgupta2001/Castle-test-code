@@ -5,7 +5,6 @@ import com.pedropathing.ivy.Scheduler;
 import com.qualcomm.hardware.limelightvision.LLStatus;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
@@ -51,7 +50,9 @@ public class SelfTest extends LinearOpMode {
             for (String m : missing) telemetry.addLine("     - " + m);
         }
         telemetry.addLine();
-        telemetry.addData("Battery", "%.2f V", batteryVolts());
+        // readSensors() is what samples the battery, so take one reading before reporting it.
+        robot.readSensors();
+        telemetry.addData("Battery", "%.2f V", robot.getBatteryVolts());
         telemetry.addLine();
         telemetry.addLine("Press START to run active checks (the intake WILL spin).");
         telemetry.update();
@@ -60,7 +61,7 @@ public class SelfTest extends LinearOpMode {
         if (isStopRequested()) return;
 
         try {
-            checkBattery();
+            checkBattery(robot);
             checkDrivetrain(robot);
             checkLimelight(robot);
             checkColorSensor(robot);
@@ -91,8 +92,8 @@ public class SelfTest extends LinearOpMode {
         }
     }
 
-    private void checkBattery() {
-        double v = batteryVolts();
+    private void checkBattery(Robot robot) {
+        double v = robot.getBatteryVolts();
         report("Battery", v >= 12.0, String.format("%.2f V (want >= 12.0)", v));
     }
 
@@ -160,15 +161,6 @@ public class SelfTest extends LinearOpMode {
             results.add("     note: if this is pinned well below the request, INTAKE_TICKS_PER_SEC");
             results.add("     may exceed what the motor can physically do. See Intake javadoc.");
         }
-    }
-
-    private double batteryVolts() {
-        double lowest = Double.MAX_VALUE;
-        for (VoltageSensor s : hardwareMap.voltageSensor) {
-            double v = s.getVoltage();
-            if (v > 0 && v < lowest) lowest = v;
-        }
-        return lowest == Double.MAX_VALUE ? 0 : lowest;
     }
 
     private void report(String subsystem, boolean pass, String detail) {

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.math;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -189,33 +189,4 @@ public class VisionMathTest {
         assertEquals(23, field[1], LOOSE);
     }
 
-    @Test
-    public void headingTowardIsNormalizedAndCorrect() {
-        // Straight ahead while facing 0 -> heading 0.
-        assertEquals(0, VisionMath.headingToward(0, 10, 0), LOOSE);
-        // Directly left while facing 0 -> 90 degrees.
-        assertEquals(Math.PI / 2, VisionMath.headingToward(0, 0, 10), LOOSE);
-        // Directly right while facing 0 -> 270 degrees, not -90.
-        assertEquals(3 * Math.PI / 2, VisionMath.headingToward(0, 0, -10), LOOSE);
-    }
-
-    @Test
-    public void normalizeAngleAlwaysLandsInZeroToTwoPi() {
-        double[] inputs = {-7, -Math.PI, 0, Math.PI, 7, 100};
-        for (double in : inputs) {
-            double out = VisionMath.normalizeAngle(in);
-            assertTrue("out of range for " + in, out >= 0 && out < 2 * Math.PI + EPS);
-        }
-        assertEquals(Math.PI, VisionMath.normalizeAngle(-Math.PI), LOOSE);
-    }
-
-    @Test
-    public void angleErrorTakesTheShortWayAround() {
-        assertEquals(0.2, VisionMath.angleError(0.1, 0.3), LOOSE);
-        // From 350 to 10 degrees is +20, not -340.
-        assertEquals(Math.toRadians(20),
-                VisionMath.angleError(Math.toRadians(350), Math.toRadians(10)), LOOSE);
-        assertEquals(Math.toRadians(-20),
-                VisionMath.angleError(Math.toRadians(10), Math.toRadians(350)), LOOSE);
-    }
 }

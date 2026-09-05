@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.util;
+package org.firstinspires.ftc.teamcode.util.diagnostics;
 
 import com.bylazar.field.FieldManager;
 import com.bylazar.field.PanelsField;

@@ -2,6 +2,9 @@ package org.firstinspires.ftc.teamcode.util;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.util.field.Alliance;
+import org.firstinspires.ftc.teamcode.util.field.StartPosition;
+
 /**
  * Init-phase menu for choosing alliance and starting position.
  *

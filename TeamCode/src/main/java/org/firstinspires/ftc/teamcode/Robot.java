@@ -4,15 +4,19 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.commands.Macros;
 import org.firstinspires.ftc.teamcode.subsystems.ColorSensor;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.subsystems.Limelight;
-import org.firstinspires.ftc.teamcode.util.Hardware;
-import org.firstinspires.ftc.teamcode.util.PoseFusion;
+import org.firstinspires.ftc.teamcode.subsystems.templates.ExampleLift;
+import org.firstinspires.ftc.teamcode.util.MatchClock;
+import org.firstinspires.ftc.teamcode.util.field.PoseFusion;
+import org.firstinspires.ftc.teamcode.util.hardware.Hardware;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,10 +34,28 @@ public class Robot {
     public static float POLLEN_MIN_SATURATION = 0.45f;
     public static float POLLEN_MIN_VALUE = 0.20f;
 
+    /**
+     * How often the battery is sampled, in milliseconds.
+     *
+     * <p>Unlike encoders and motor currents, {@code VoltageSensor} reads are <em>not</em> served
+     * from the Lynx bulk cache, so each one is its own bus transaction. Pack voltage also moves far
+     * slower than the 50 Hz loop, so sampling it every cycle spends real time on a number that has
+     * not changed.
+     */
+    public static long VOLTAGE_SAMPLE_MS = 250;
+
     public final Drivetrain drivetrain;
     public final Limelight limelight;
     public final ColorSensor colorSensor;
     public final Intake intake;
+
+    /**
+     * Reference mechanism built from {@code subsystems/templates}. No lift is on the robot yet, so
+     * {@link ExampleLift#isAvailable()} is false and every call no-ops — but it is wired exactly as
+     * a real mechanism would be, so the templates have a live user rather than being code nobody
+     * runs. Bolt on a lift, add the two config names, and it works.
+     */
+    public final ExampleLift lift;
 
     /** Multi-subsystem one-button actions. Owned here so every OpMode gets the same set. */
     public final Macros macros;
@@ -41,7 +63,19 @@ public class Robot {
     /** Blends odometry with AprilTag fixes. See {@link #updateLocalization()}. */
     public final PoseFusion poseFusion = new PoseFusion();
 
+    /**
+     * How much of the match period is left. Null until an OpMode calls {@link #startMatch}.
+     *
+     * <p>Owned here rather than by an OpMode so that telemetry, the match logger, and any
+     * time-aware routine all read the same clock instead of each keeping its own timer.
+     */
+    private MatchClock matchClock = null;
+
     private final List<LynxModule> hubs;
+    private final List<VoltageSensor> voltageSensors;
+
+    private double batteryVolts = 0;
+    private long lastVoltageSampleMs = 0;
 
     public Robot(HardwareMap hardwareMap) {
         Hardware.reset();
@@ -54,10 +88,19 @@ public class Robot {
             hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
         }
 
+        // Resolved once here rather than walking hardwareMap.voltageSensor every loop, which is
+        // what Teleop and SelfTest each used to do. It is a DeviceMapping (Iterable, not a
+        // Collection), so it has to be copied element by element.
+        voltageSensors = new ArrayList<>();
+        for (VoltageSensor sensor : hardwareMap.voltageSensor) {
+            voltageSensors.add(sensor);
+        }
+
         drivetrain = new Drivetrain(hardwareMap);
         limelight = new Limelight(hardwareMap);
         colorSensor = new ColorSensor(hardwareMap);
         intake = new Intake(hardwareMap);
+        lift = new ExampleLift(hardwareMap);
         intake.setCapturedSupplier(this::pollenAtColorSensor);
 
         macros = new Macros(this);
@@ -79,19 +122,64 @@ public class Robot {
         }
         limelight.update();
         colorSensor.update();
+
+        long now = System.currentTimeMillis();
+        if (matchClock != null) matchClock.update(now);
+        sampleBattery(now);
+    }
+
+    /**
+     * Starts the match clock for this period. Call once from the OpMode's {@code start()}.
+     *
+     * @param period which period is beginning
+     */
+    public void startMatch(MatchClock.Period period) {
+        matchClock = period == MatchClock.Period.AUTONOMOUS
+                ? MatchClock.forAutonomous()
+                : MatchClock.forTeleop();
+        matchClock.start(System.currentTimeMillis());
+    }
+
+    /**
+     * The match clock, or {@code null} before {@link #startMatch} has been called.
+     *
+     * <p>Callers must null-check: {@code init_loop()} runs before any period has started, and
+     * diagnostics OpModes never start one at all.
+     */
+    public MatchClock getMatchClock() {
+        return matchClock;
+    }
+
+    /**
+     * Lowest battery voltage across all voltage sensors, refreshed at most every
+     * {@link #VOLTAGE_SAMPLE_MS}. Returns 0 when no sensor could be read.
+     *
+     * <p>The <em>lowest</em> rather than the average: with two hubs, the one sagging is the one
+     * that is about to brown out, and averaging hides it.
+     */
+    public double getBatteryVolts() {
+        return batteryVolts;
+    }
+
+    private void sampleBattery(long nowMs) {
+        if (lastVoltageSampleMs != 0 && nowMs - lastVoltageSampleMs < VOLTAGE_SAMPLE_MS) return;
+        lastVoltageSampleMs = nowMs;
+
+        double lowest = Double.MAX_VALUE;
+        for (VoltageSensor sensor : voltageSensors) {
+            double v = sensor.getVoltage();
+            if (v > 0 && v < lowest) lowest = v;
+        }
+        batteryVolts = lowest == Double.MAX_VALUE ? 0 : lowest;
     }
 
     /** Pushes queued outputs to hardware. Call at the BOTTOM of the loop, after commands run. */
     public void writeActuators() {
         intake.update();
+        lift.update();
         drivetrain.update();
     }
 
-    /** Convenience for callers that do not need the read/write split (e.g. diagnostics). */
-    public void update() {
-        readSensors();
-        writeActuators();
-    }
 
     /**
      * Releases non-actuator hardware at the end of an OpMode. Safe to call more than once.
