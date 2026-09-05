@@ -15,6 +15,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.subsystems.Intake;
 
 /**
  * Teaching OpMode: how the Ivy command system works, one button at a time.
@@ -23,11 +24,23 @@ import org.firstinspires.ftc.teamcode.Robot;
  * one idea, in the order they are worth learning. Read the code alongside the robot.
  *
  * <p>Read {@code docs/03-commands.md} first if any of this is unfamiliar.
+ *
+ * <h2>Why every demo that moves the intake uses an {@code Intake} command factory</h2>
+ * The intake's default idle command owns the motor whenever nothing else does, and it re-asserts
+ * "stop" on every scheduler tick. A plain {@code robot.intake.intake()} call from a command that
+ * does not {@code requiring(intake)} is therefore overwritten before the motor ever sees it.
+ * {@code runForMs}, {@code intakeCommand} and friends all require the intake, which suspends the
+ * idle command for as long as they run. Demo 9 triggers the failure on purpose so you can watch
+ * it not happen.
  */
 @TeleOp(name = "Concept: Commands", group = "Concept")
 public class ConceptCommands extends OpMode {
+    /** Short bursts, so one demo is over before the next button press. */
+    private static final long BURST_MS = 500;
+
     private Robot robot;
     private String lastAction = "none";
+    private int instantCount = 0;
 
     @Override
     public void init() {
@@ -50,6 +63,7 @@ public class ConceptCommands extends OpMode {
         // *WasPressed() latches until read. init_loop() never reads them, so without this every
         // button bumped during init fires at once on the first loop.
         gamepad1.resetEdgeDetection();
+        gamepad2.resetEdgeDetection();
     }
 
     @Override
@@ -59,12 +73,15 @@ public class ConceptCommands extends OpMode {
         Scheduler.execute();      //    run every scheduled command exactly once
         robot.writeActuators();   // 3. act
 
-        telemetry.addLine("A = instant      B = wait 1s then run");
-        telemetry.addLine("X = sequential   Y = parallel");
-        telemetry.addLine("LB = race        RB = deadline");
-        telemetry.addLine("DPAD-UP = conditional   LB = conditional skip   DPAD-DOWN = cancel all");
+        telemetry.addLine("A = instant          B = wait 1s then run");
+        telemetry.addLine("X = sequential       Y = parallel");
+        telemetry.addLine("LB = race            RB = deadline");
+        telemetry.addLine("DPAD-UP = conditional   DPAD-LEFT = conditional skip");
+        telemetry.addLine("DPAD-RIGHT = direct call (watch it NOT move)");
+        telemetry.addLine("DPAD-DOWN = cancel all");
         telemetry.addLine();
         telemetry.addData("Last scheduled", lastAction);
+        telemetry.addData("Instant count", instantCount);
         telemetry.addData("Intake mode", robot.intake.getMode());
         telemetry.addData("hasPollen?", robot.intake.hasPollen());
     }
@@ -77,34 +94,36 @@ public class ConceptCommands extends OpMode {
 
     private void handleButtons() {
         // ---- 1. instant: runs once, finishes immediately ----
+        // Nothing to wait for, so it is done the same tick it starts. Good for flipping a flag or
+        // recording a value; not a way to drive a mechanism that something else owns (see demo 9).
         if (gamepad1.aWasPressed()) {
-            run("instant", instant(() -> robot.intake.eject()));
+            run("instant", instant(() -> instantCount++));
         }
 
         // ---- 2. sequential with a wait: steps run strictly in order ----
         if (gamepad1.bWasPressed()) {
             run("waitMs then intake", sequential(
                     waitMs(1000),
-                    instant(() -> robot.intake.intake())
+                    robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, BURST_MS)
             ));
         }
 
         // ---- 3. sequential: each step waits for the previous one to finish ----
+        // runForMs stops the motor itself when its time is up, so no trailing "stop" is needed.
         if (gamepad1.xWasPressed()) {
             run("sequential", sequential(
-                    robot.intake.runForMs(1500, 400),
+                    robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, 400),
                     waitMs(200),
-                    robot.intake.runForMs(-1400, 400),
-                    instant(() -> robot.intake.stop())
+                    robot.intake.runForMs(Intake.OUTTAKE_TICKS_PER_SEC, 400)
             ));
         }
 
         // ---- 4. parallel: everything runs at once, group ends when ALL are done ----
-        // Note both children here touch different subsystems. Two commands requiring the SAME
+        // Note both children here touch different things. Two commands requiring the SAME
         // subsystem cannot run in parallel — Ivy will resolve the conflict, not run both.
         if (gamepad1.yWasPressed()) {
             run("parallel", parallel(
-                    robot.intake.runForMs(1500, 800),
+                    robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, 800),
                     sequential(waitMs(300), instant(() -> lastAction = "parallel: half way"))
             ));
         }
@@ -127,14 +146,13 @@ public class ConceptCommands extends OpMode {
             ));
         }
 
-        // ---- 7. conditional behaviour, chosen when the command RUNS ----
-        // Building the branch at schedule time would capture the wrong answer; putting the check
-        // inside an instant defers it to execution.
+        // ---- 7. conditional: the branch is chosen when the command STARTS, not when it is built ----
+        // Both branches' requirements are claimed up front, so whichever runs owns the intake.
         if (gamepad1.dpadUpWasPressed()) {
-            run("conditional", instant(() -> {
-                if (robot.intake.hasPollen()) robot.intake.eject();
-                else robot.intake.intake();
-            }));
+            run("conditional", conditional(
+                    () -> robot.intake.hasPollen(),
+                    robot.intake.runForMs(Intake.EJECT_TICKS_PER_SEC, BURST_MS),
+                    robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, BURST_MS)));
         }
 
         // ---- 8. the unless() trap ----
@@ -149,14 +167,24 @@ public class ConceptCommands extends OpMode {
         //
         // Skip with an explicit no-op instead. instant() sets done to true, so it completes on its
         // first tick. MainAuto.skipIfAnyLegMissed is the real use of this.
-        if (gamepad1.leftBumperWasPressed()) {
+        if (gamepad1.dpadLeftWasPressed()) {
             run("conditional skip", conditional(
                     () -> robot.intake.hasPollen(),
                     instant(() -> lastAction = "skipped: already carrying"),
-                    robot.intake.intakeCommand()));
+                    robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, 800)));
         }
 
-        // ---- 9. cancelling ----
+        // ---- 9. the default-command trap: a direct call that goes nowhere ----
+        // This instant does not require the intake, so the idle command keeps running. The
+        // Scheduler starts a newly scheduled command immediately, so intake() is set right here;
+        // then Scheduler.execute() runs the idle command, which sets stop(); then writeActuators()
+        // pushes... stop. The motor never moves and "Intake mode" reads IDLE. Every real intake
+        // demo above goes through a command factory for exactly this reason.
+        if (gamepad1.dpadRightWasPressed()) {
+            run("direct call (nothing should happen)", instant(() -> robot.intake.intake()));
+        }
+
+        // ---- 10. cancelling ----
         // reset() clears the scheduler outright. Note it does NOT call end() on running commands,
         // so anything needing cleanup should be cancelled individually instead.
         if (gamepad1.dpadDownWasPressed()) {
