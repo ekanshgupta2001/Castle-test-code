@@ -114,7 +114,7 @@ first run's target.
 For anything vision-driven, build a fresh path each time:
 
 ```java
-drivetrain.followLazyCommand(this::buildPollenPath, false)
+drivetrain.followLazyCommand(this::buildApproachPath, false)
 ```
 
 The supplier runs at command start. Returning `null` — no valid target — yields a command that
@@ -210,13 +210,13 @@ A supplier returning `null` still finishes immediately; that path is deliberatel
 Write every pose for **blue**, once, and mirror it:
 
 ```java
-Pose start = FieldConstants.forAlliance(FieldConstants.startPose(position), alliance);
+Pose start = FieldConstants.forAlliance(FieldPoses.startPose(position), alliance);
 ```
 
 Mirroring flips the heading as well as the position (`π − h` across the vertical centre line).
 Mirroring position alone produces an autonomous that works perfectly on one alliance and drives
-backwards on the other. The math is unit-tested in `FieldConstantsTest`; the coordinates are
-placeholders you must measure.
+backwards on the other. The math is unit-tested in `FieldConstantsTest`; the coordinates in
+`game/FieldPoses` are placeholders you must measure.
 
 ## Tuning order
 

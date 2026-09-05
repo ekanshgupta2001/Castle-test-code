@@ -58,7 +58,7 @@ public class Teleop extends MatchOpMode {
 
     // Previous values, for firing haptics on the transition rather than continuously.
     private Macros.Outcome lastOutcome = Macros.Outcome.IDLE;
-    private boolean lastHadPollen = false;
+    private boolean lastHadPiece = false;
     private boolean endgameAnnounced = false;
 
     @Override
@@ -148,11 +148,11 @@ public class Teleop extends MatchOpMode {
         if (macroRunning()) return;
 
         if (Controls.COLLECT.wasPressed(gamepad1, gamepad2)) {
-            startMacro(robot.macros.collectPollen());
+            startMacro(robot.macros.collectPiece());
         } else if (Controls.ALIGN_SERVO.wasPressed(gamepad1, gamepad2)) {
-            startMacro(robot.macros.servoAlignToPollen());
+            startMacro(robot.macros.servoAlignToPiece());
         } else if (Controls.ALIGN_PATH.wasPressed(gamepad1, gamepad2)) {
-            startMacro(robot.macros.alignToPollen());
+            startMacro(robot.macros.alignToPiece());
         } else if (Controls.RELOCALIZE.wasPressed(gamepad1, gamepad2)) {
             startMacro(robot.macros.relocalize());
         } else if (Controls.SNAP_90.wasPressed(gamepad1, gamepad2)) {
@@ -253,12 +253,12 @@ public class Teleop extends MatchOpMode {
         }
 
         // Possession is the one piece of state both drivers act on, so both get told.
-        boolean hasPollen = robot.intake.hasPollen();
-        if (hasPollen && !lastHadPollen) {
+        boolean hasPiece = robot.intake.hasPiece();
+        if (hasPiece && !lastHadPiece) {
             gamepad1.rumbleBlips(RUMBLE_SUCCESS_BLIPS);
             gamepad2.rumbleBlips(RUMBLE_SUCCESS_BLIPS);
         }
-        lastHadPollen = hasPollen;
+        lastHadPiece = hasPiece;
 
         MatchClock clock = robot.getMatchClock();
         if (!endgameAnnounced && clock != null && clock.isEndgame()) {
@@ -271,8 +271,8 @@ public class Teleop extends MatchOpMode {
     @Override
     protected void onDraw() {
         Drawing.drawRobot(robot.drivetrain.getPose());
-        if (robot.limelight.hasStablePollen()) {
-            Drawing.drawTarget(robot.limelight.estimatePollenFieldPose(robot.drivetrain.getPose()));
+        if (robot.limelight.hasStableBlob()) {
+            Drawing.drawTarget(robot.limelight.estimateBlobApproachPose(robot.drivetrain.getPose()));
         }
         Drawing.sendPacket();
     }
@@ -292,7 +292,7 @@ public class Teleop extends MatchOpMode {
     private void matchTelemetry() {
         MatchClock clock = robot.getMatchClock();
         telemetry.addData("Time", clock == null ? "-" : clock.getStatus());
-        telemetry.addData("Carrying", robot.intake.hasPollen() ? "YES" : "no");
+        telemetry.addData("Carrying", robot.intake.hasPiece() ? "YES" : "no");
         telemetry.addData("Macro", robot.macros.getStatus());
         telemetry.addData("Drive", robot.drivetrain.isFieldCentric() ? "Field" : "Robot");
 
@@ -342,9 +342,9 @@ public class Teleop extends MatchOpMode {
         telemetry.addData("Localization", robot.poseFusion.getStatus());
         telemetry.addData("Pipeline", robot.limelight.getPipelineName());
         telemetry.addData("LL tags", robot.limelight.getBotposeTagCount());
-        telemetry.addData("Pollen lock?", robot.limelight.hasStablePollen());
-        telemetry.addData("Pollen spread", "%.1f deg", robot.limelight.getPollenSpreadDegrees());
-        telemetry.addData("Pollen range", "%.1f in", robot.limelight.estimatePollenDistanceInches());
+        telemetry.addData("Blob lock?", robot.limelight.hasStableBlob());
+        telemetry.addData("Blob spread", "%.1f deg", robot.limelight.getBlobSpreadDegrees());
+        telemetry.addData("Blob range", "%.1f in", robot.limelight.estimateBlobDistanceInches());
         telemetry.addData("Color hue", "%.0f", robot.colorSensor.getHue());
         telemetry.addData("Color sat/val", "%.2f / %.2f",
                 robot.colorSensor.getSaturation(), robot.colorSensor.getValue());

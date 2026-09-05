@@ -111,18 +111,18 @@ public class MacrosTest {
     }
 
     @Test
-    public void collectPollenTimesOutWhenNothingIsVisible() throws InterruptedException {
-        runToCompletion(robot.macros.collectPollen());
+    public void collectPieceTimesOutWhenNothingIsVisible() throws InterruptedException {
+        runToCompletion(robot.macros.collectPiece());
         assertEquals(Macros.Outcome.TIMED_OUT, robot.macros.getOutcome());
         assertEquals("idle", robot.macros.getActiveName());
         assertEquals("no target, so no path", 0, follower.followPathCalls);
         assertFalse(follower.busy);
-        assertFalse(robot.intake.hasPollen());
+        assertFalse(robot.intake.hasPiece());
     }
 
     @Test
-    public void collectPollenRequiresBothTheDrivetrainAndTheIntake() {
-        Command macro = robot.macros.collectPollen();
+    public void collectPieceRequiresBothTheDrivetrainAndTheIntake() {
+        Command macro = robot.macros.collectPiece();
         assertTrue(macro.requirements().contains(robot.drivetrain));
         assertTrue(macro.requirements().contains(robot.intake));
     }
@@ -141,7 +141,7 @@ public class MacrosTest {
 
     @Test
     public void servoAlignTimesOutWithoutATargetAndStopsTurning() throws InterruptedException {
-        runToCompletion(robot.macros.servoAlignToPollen());
+        runToCompletion(robot.macros.servoAlignToPiece());
         assertEquals(Macros.Outcome.TIMED_OUT, robot.macros.getOutcome());
         assertEquals(0, follower.lastTurn, 1e-9);
     }
@@ -169,7 +169,7 @@ public class MacrosTest {
     @Test
     public void abortMarksTheMacroCancelledAndStopsTheFollower() throws InterruptedException {
         Macros.SEARCH_TIMEOUT_MS = 5000;
-        Command macro = robot.macros.collectPollen();
+        Command macro = robot.macros.collectPiece();
         macro.schedule();
         tick();
         tick();

@@ -69,7 +69,7 @@ public static double CAMERA_YAW_OFFSET_DEGREES = 0.0;
 ```
 
 Measure them on the real robot. They are `@Configurable`, so you can tune them live on the Panels
-dashboard while watching the `Pollen range` telemetry against a tape measure — no redeploy.
+dashboard while watching the `Blob range` telemetry against a tape measure — no redeploy.
 
 **Sign warning:** our `CAMERA_PITCH_DEGREES` is positive *downward*. The official Limelight docs
 define their mount angle positive *upward*. Copy a formula from a tutorial without checking and you
@@ -77,8 +77,8 @@ get a confidently wrong answer.
 
 ## Guards, and why each exists
 
-`estimatePollenDistanceInches()` returns `NaN` — not `0` — when there is no usable reading, and
-`estimatePollenFieldPose()` returns `null` rather than echoing the robot's own pose. Both matter:
+`estimateBlobDistanceInches()` returns `NaN` — not `0` — when there is no usable reading, and
+`estimateBlobApproachPose()` returns `null` rather than echoing the robot's own pose. Both matter:
 
 - A `0` is indistinguishable from a legitimately computed zero, and would be driven to.
 - Echoing the robot pose produces a zero-length path that silently does nothing.
@@ -100,12 +100,12 @@ confident, completely wrong reading. So detections are filtered before anything 
 - Blobs are sorted **largest-area-first**, so "primary" is decided here rather than by an invisible
   sort setting in the web UI.
 - `tx` and `ty` go through `MedianFilter`s.
-- `hasStablePollen()` requires a **full window** whose **spread** is under a few degrees.
+- `hasStableBlob()` requires a **full window** whose **spread** is under a few degrees.
 
 A median is used rather than an average on purpose: an average blends an outlier into the answer, a
 median discards it. `MedianFilterTest` demonstrates both.
 
-Gate motion on `hasStablePollen()`, not `seesPollen()`.
+Gate motion on `hasStableBlob()`, not `seesBlob()`.
 
 ## AprilTags: the bug worth remembering
 

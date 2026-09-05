@@ -7,6 +7,7 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.commands.Macros;
+import org.firstinspires.ftc.teamcode.game.Pollen;
 import org.firstinspires.ftc.teamcode.subsystems.ColorSensor;
 import org.firstinspires.ftc.teamcode.subsystems.Drivetrain;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
@@ -31,12 +32,6 @@ import java.util.List;
  */
 @Configurable
 public class Robot {
-    /** Hue of a pollen game piece, in degrees. Yellow sits near 55. Tune on the real field. */
-    public static float POLLEN_HUE_DEGREES = 55f;
-    public static float POLLEN_HUE_TOLERANCE = 25f;
-    public static float POLLEN_MIN_SATURATION = 0.45f;
-    public static float POLLEN_MIN_VALUE = 0.20f;
-
     /**
      * How often the battery is sampled, in milliseconds.
      *
@@ -112,7 +107,7 @@ public class Robot {
         colorSensor = new ColorSensor(hardwareMap);
         intake = new Intake(hardwareMap, HardwareNames.INTAKE_MOTOR, clock);
         lift = new ExampleLift(hardwareMap, clock);
-        intake.setCapturedSupplier(this::pollenAtColorSensor);
+        intake.setCapturedSupplier(this::pieceAtColorSensor);
 
         macros = new Macros(this);
     }
@@ -133,7 +128,7 @@ public class Robot {
         this.colorSensor = colorSensor;
         this.intake = intake;
         this.lift = lift;
-        intake.setCapturedSupplier(this::pollenAtColorSensor);
+        intake.setCapturedSupplier(this::pieceAtColorSensor);
         macros = new Macros(this);
     }
 
@@ -156,6 +151,9 @@ public class Robot {
         for (LynxModule hub : hubs) {
             hub.clearBulkCache();
         }
+        // Pushed every loop, like Intake does with its jam thresholds, so a dashboard edit to the
+        // game piece's height reaches the camera geometry without a redeploy.
+        limelight.setTargetHeightInches(Pollen.HEIGHT_INCHES);
         limelight.update();
         colorSensor.update();
 
@@ -239,14 +237,11 @@ public class Robot {
     }
 
     /**
-     * True when the colour sensor is looking at something pollen-coloured.
-     *
-     * <p>Thresholds hue first, gated by saturation and brightness. A brightness-only test would
-     * fire on any bright object — a white field wall reads as "captured".
+     * True when the colour sensor is looking at a game piece. This is the one place the generic
+     * intake meets the season's {@link Pollen} definition.
      */
-    private boolean pollenAtColorSensor() {
-        return colorSensor.matchesHue(
-                POLLEN_HUE_DEGREES, POLLEN_HUE_TOLERANCE, POLLEN_MIN_SATURATION, POLLEN_MIN_VALUE);
+    private boolean pieceAtColorSensor() {
+        return Pollen.isAtSensor(colorSensor);
     }
 
     /**
@@ -257,7 +252,7 @@ public class Robot {
      * blends: a fix is gated on tag count, field bounds, and a maximum jump, then latency-compensated
      * and filtered. One bad frame nudges the estimate instead of teleporting the robot.
      *
-     * <p>Does nothing while a path is running if the camera is on the pollen pipeline, since the
+     * <p>Does nothing while a path is running if the camera is on the blob pipeline, since the
      * botpose is meaningless there.
      */
     public void updateLocalization() {

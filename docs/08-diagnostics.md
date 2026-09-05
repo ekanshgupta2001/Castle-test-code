@@ -105,7 +105,7 @@ flushed loses the tail of the match, which is the interesting part.
 
 Follower-derived columns write `NaN` rather than `0` when there is no follower — so a run on a robot
 whose drivetrain failed to build reads as *missing data*, not as a robot that sat perfectly still
-with zero error. Same instinct as `estimatePollenDistanceInches()` returning NaN in lesson 5.
+with zero error. Same instinct as `estimateBlobDistanceInches()` returning NaN in lesson 5.
 
 ## Reading it back
 
@@ -126,7 +126,7 @@ Loop timing
   NOTE: loops over 100 ms mean the robot was blind and unresponsive that long.
 
 Macros
-  collectPollen        SUCCESS
+  collectPiece        SUCCESS
   servoAlign           TIMED_OUT
 ```
 

@@ -69,8 +69,8 @@ public class Macros {
     private final Robot robot;
     private Outcome outcome = Outcome.IDLE;
     private String activeName = "idle";
-    /** Whether the intake was already loaded when the current macro began. See {@link #collectPollen}. */
-    private boolean hadPollenAtStart = false;
+    /** Whether the intake was already loaded when the current macro began. See {@link #collectPiece}. */
+    private boolean hadPieceAtStart = false;
 
     public Macros(Robot robot) {
         this.robot = robot;
@@ -112,27 +112,27 @@ public class Macros {
     // ---- Vision-driven macros ----
 
     /**
-     * Switches to the pollen pipeline, waits for a stable detection, drives to it, and intakes.
+     * Switches to the blob pipeline, waits for a stable detection, drives to it, and intakes.
      *
      * <p>Succeeds on <em>capture</em>, not merely on the path ending — a path that completes with an
      * empty intake is a failure, and reporting it as success hides a miss from the drivers.
      */
-    public Command collectPollen() {
+    public Command collectPiece() {
         return sequential(
-                begin("collectPollen"),
-                instant(() -> hadPollenAtStart = robot.intake.hasPollen()),
-                instant(robot.limelight::activatePollenPipeline),
+                begin("collect"),
+                instant(() -> hadPieceAtStart = robot.intake.hasPiece()),
+                instant(robot.limelight::activateBlobPipeline),
                 waitMs(PIPELINE_WARMUP_MS),
                 race(
-                        waitUntil(robot.limelight::hasStablePollen),
+                        waitUntil(robot.limelight::hasStableBlob),
                         waitMs(SEARCH_TIMEOUT_MS)
                 ),
                 race(
                         deadline(
-                                robot.drivetrain.followLazyCommand(this::buildPollenPath, false),
+                                robot.drivetrain.followLazyCommand(this::buildApproachPath, false),
                                 robot.intake.captureAndHoldCommand()
                         ),
-                        // Stop early on a NEW capture. Testing hasPollen() alone would end the race
+                        // Stop early on a NEW capture. Testing hasPiece() alone would end the race
                         // on tick one whenever the robot set off already carrying a piece, and would
                         // then report that stale piece as this macro's success.
                         waitUntil(this::capturedSomethingNew),
@@ -144,37 +144,37 @@ public class Macros {
     }
 
     private boolean capturedSomethingNew() {
-        return robot.intake.hasPollen() && !hadPollenAtStart;
+        return robot.intake.hasPiece() && !hadPieceAtStart;
     }
 
     /**
      * Turns to face the detected blob without driving to it.
      *
-     * <p>Cheap and low-risk compared to {@link #collectPollen()} — useful when the drivers want to
+     * <p>Cheap and low-risk compared to {@link #collectPiece()} — useful when the drivers want to
      * line up and take the last few inches themselves.
      */
-    public Command alignToPollen() {
+    public Command alignToPiece() {
         return sequential(
-                begin("alignToPollen"),
-                instant(robot.limelight::activatePollenPipeline),
+                begin("align"),
+                instant(robot.limelight::activateBlobPipeline),
                 waitMs(PIPELINE_WARMUP_MS),
                 race(
-                        waitUntil(robot.limelight::hasStablePollen),
+                        waitUntil(robot.limelight::hasStableBlob),
                         waitMs(SEARCH_TIMEOUT_MS)
                 ),
                 race(
-                        robot.drivetrain.followLazyCommand(this::buildTurnToPollenPath, true),
+                        robot.drivetrain.followLazyCommand(this::buildTurnToBlobPath, true),
                         waitMs(ALIGN_TIMEOUT_MS)
                 ),
                 instant(robot.limelight::activateAprilTagPipeline),
-                finish(Outcome.SUCCESS, Outcome.NO_TARGET, robot.limelight::hasStablePollen)
+                finish(Outcome.SUCCESS, Outcome.NO_TARGET, robot.limelight::hasStableBlob)
         );
     }
 
     /**
      * Closed-loop turn that drives the camera's {@code tx} to zero.
      *
-     * <p>Different tool from {@link #alignToPollen()}, which plans a path to a computed heading and
+     * <p>Different tool from {@link #alignToPiece()}, which plans a path to a computed heading and
      * is therefore only as accurate as the pose estimate and the mount calibration. This servos on
      * the raw camera error, so it converges on the target regardless of either — the right choice
      * for the last few degrees, and a good demonstration of feedback control on a real sensor.
@@ -182,15 +182,15 @@ public class Macros {
      * <p>Uses Pedro's {@link PIDFController} rather than a hand-rolled loop, so it behaves like the
      * rest of the robot's control and its gains are tuned the same way.
      */
-    public Command servoAlignToPollen() {
+    public Command servoAlignToPiece() {
         final PIDFController controller =
                 new PIDFController(new PIDFCoefficients(ALIGN_P, ALIGN_I, ALIGN_D, 0));
         return sequential(
                 begin("servoAlign"),
-                instant(robot.limelight::activatePollenPipeline),
+                instant(robot.limelight::activateBlobPipeline),
                 waitMs(PIPELINE_WARMUP_MS),
                 race(
-                        waitUntil(robot.limelight::hasStablePollen),
+                        waitUntil(robot.limelight::hasStableBlob),
                         waitMs(SEARCH_TIMEOUT_MS)
                 ),
                 race(
@@ -201,15 +201,15 @@ public class Macros {
                                     robot.drivetrain.startTeleop();
                                 })
                                 .setExecute(() -> {
-                                    if (!robot.limelight.hasStablePollen()) return;
+                                    if (!robot.limelight.hasStableBlob()) return;
                                     // tx > 0 means the target is right of centre, so we must turn
                                     // right, which is a negative (clockwise) turn command.
-                                    controller.updatePosition(robot.limelight.getFilteredPollenTx());
+                                    controller.updatePosition(robot.limelight.getFilteredBlobTx());
                                     double turn = -clamp(controller.run(), ALIGN_MAX_TURN);
                                     robot.drivetrain.drive(0, 0, turn);
                                 })
-                                .setDone(() -> robot.limelight.hasStablePollen()
-                                        && Math.abs(robot.limelight.getFilteredPollenTx())
+                                .setDone(() -> robot.limelight.hasStableBlob()
+                                        && Math.abs(robot.limelight.getFilteredBlobTx())
                                            <= ALIGN_TOLERANCE_DEGREES)
                                 .setEnd(ec -> robot.drivetrain.drive(0, 0, 0))
                                 .requiring(robot.drivetrain),
@@ -217,8 +217,8 @@ public class Macros {
                 ),
                 instant(robot.limelight::activateAprilTagPipeline),
                 finish(Outcome.SUCCESS, Outcome.TIMED_OUT,
-                        () -> robot.limelight.hasStablePollen()
-                                && Math.abs(robot.limelight.getFilteredPollenTx())
+                        () -> robot.limelight.hasStableBlob()
+                                && Math.abs(robot.limelight.getFilteredBlobTx())
                                    <= ALIGN_TOLERANCE_DEGREES)
         );
     }
@@ -289,14 +289,14 @@ public class Macros {
     // ---- Path construction ----
 
     /**
-     * Builds a fresh straight-line path to the current pollen estimate, or {@code null} if there
+     * Builds a fresh straight-line path to the current blob estimate, or {@code null} if there
      * isn't a trustworthy one. Called at command start, never stored.
      */
-    private PathChain buildPollenPath() {
+    private PathChain buildApproachPath() {
         Pose current = robot.drivetrain.getPose();
-        if (current == null || !robot.limelight.hasStablePollen()) return null;
+        if (current == null || !robot.limelight.hasStableBlob()) return null;
 
-        Pose target = robot.limelight.estimatePollenFieldPose(current);
+        Pose target = robot.limelight.estimateBlobApproachPose(current);
         if (target == null) return null;
 
         return robot.drivetrain.getFollower().pathBuilder()
@@ -311,11 +311,11 @@ public class Macros {
      * <p>Uses a path rather than {@code turnTo} so the heading interpolation and completion
      * tolerance come from the same tuned constants as every other motion.
      */
-    private PathChain buildTurnToPollenPath() {
+    private PathChain buildTurnToBlobPath() {
         Pose current = robot.drivetrain.getPose();
-        if (current == null || !robot.limelight.hasStablePollen()) return null;
+        if (current == null || !robot.limelight.hasStableBlob()) return null;
 
-        double[] robotFrame = robot.limelight.estimatePollenInRobotFrame();
+        double[] robotFrame = robot.limelight.estimateBlobInRobotFrame();
         if (robotFrame == null) return null;
 
         double heading = Angles.headingToward(

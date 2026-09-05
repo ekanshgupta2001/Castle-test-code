@@ -131,12 +131,12 @@ public class IntakeCommandTest {
         Command capture = intake.captureCommand(() -> seen[0]);
         capture.schedule();
         tick();
-        assertFalse(intake.hasPollen());
+        assertFalse(intake.hasPiece());
         assertEquals(Intake.INTAKE_TICKS_PER_SEC, motor.commandedVelocity, EPS);
 
         seen[0] = true;
         tick();
-        assertTrue(intake.hasPollen());
+        assertTrue(intake.hasPiece());
         assertEquals(0, motor.commandedVelocity, EPS);
         assertFalse(Scheduler.isScheduled(capture));
     }
@@ -148,7 +148,7 @@ public class IntakeCommandTest {
         tick();
         Scheduler.cancel(capture);
         tick();
-        assertFalse(intake.hasPollen());
+        assertFalse(intake.hasPiece());
         assertEquals(0, motor.commandedVelocity, EPS);
     }
 
@@ -158,10 +158,10 @@ public class IntakeCommandTest {
         intake.setCapturedSupplier(() -> atSensor[0]);
         intake.intakeCommand().schedule();
         tick();
-        assertFalse(intake.hasPollen());
+        assertFalse(intake.hasPiece());
         atSensor[0] = true;
         tick();
-        assertTrue(intake.hasPollen());
+        assertTrue(intake.hasPiece());
     }
 
     @Test

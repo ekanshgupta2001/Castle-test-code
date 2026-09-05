@@ -17,7 +17,7 @@ servo.setPosition(0.65);      // no feedback exists; you wait and assume
 **Closed loop** — measure the error and correct it:
 
 ```java
-controller.updatePosition(limelight.getFilteredPollenTx());   // where are we?
+controller.updatePosition(limelight.getFilteredBlobTx());   // where are we?
 double turn = -clamp(controller.run(), MAX_TURN);             // how hard do we push?
 ```
 
@@ -83,7 +83,7 @@ the whole point of the sanity check in the next section.
 ```java
 double turn = -clamp(controller.run(), ALIGN_MAX_TURN);
 ...
-.setDone(() -> Math.abs(limelight.getFilteredPollenTx()) <= ALIGN_TOLERANCE_DEGREES)
+.setDone(() -> Math.abs(limelight.getFilteredBlobTx()) <= ALIGN_TOLERANCE_DEGREES)
 ```
 
 Without a clamp, a large error commands full power and the robot lurches. Without a tolerance, `done`
@@ -175,7 +175,7 @@ and reality, which is a much smaller job. Pedro's `PIDFController` has an `F` te
 
 ## Practice
 
-1. Open the Panels dashboard and run `servoAlignToPollen` with a target in view.
+1. Open the Panels dashboard and run `servoAlignToPiece` with a target in view.
 2. Raise `ALIGN_P` until the robot visibly oscillates around the target. That is too much P.
 3. Add `ALIGN_D` until it settles cleanly.
 4. Drop P until it becomes sluggish, so you have felt both failure modes.

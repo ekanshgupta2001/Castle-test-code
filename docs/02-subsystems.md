@@ -146,7 +146,7 @@ private BooleanSupplier capturedSupplier = () -> false;
 public void setCapturedSupplier(BooleanSupplier supplier) { ... }
 
 // Robot's constructor
-intake.setCapturedSupplier(this::pollenAtColorSensor);
+intake.setCapturedSupplier(this::pieceAtColorSensor);
 ```
 
 `Intake` stays testable with a fake supplier, and swapping to a distance sensor or a beam break later

@@ -26,7 +26,7 @@ import java.util.Locale;
  * <h2>Schema</h2>
  * {@code t_ms, phase, remaining_s, loop_ms, battery_v, pose_x, pose_y, pose_h, path_busy,
  * path_completion, trans_error, heading_error, intake_mode, intake_target_v, intake_actual_v,
- * intake_amps, unjamming, has_pollen, color_v, ll_target, ll_tx, ll_ty, localization, macro,
+ * intake_amps, unjamming, has_piece, color_v, ll_target, ll_tx, ll_ty, localization, macro,
  * macro_outcome}
  *
  * <p>Three groups of columns earn their place for specific reasons. <b>Target and error</b>
@@ -57,7 +57,7 @@ public class MatchLogger {
             "pose_x", "pose_y", "pose_h",
             "path_busy", "path_completion", "trans_error", "heading_error",
             "intake_mode", "intake_target_v", "intake_actual_v", "intake_amps", "unjamming",
-            "has_pollen", "color_v",
+            "has_piece", "color_v",
             "ll_target", "ll_tx", "ll_ty", "localization",
             "macro", "macro_outcome"
     };
@@ -139,7 +139,7 @@ public class MatchLogger {
                     robot.intake.getVelocityTicksPerSec(),
                     robot.intake.getCurrentAmps(),
                     robot.intake.isUnjamming() ? 1 : 0,
-                    robot.intake.hasPollen() ? 1 : 0,
+                    robot.intake.hasPiece() ? 1 : 0,
                     robot.colorSensor.getValue(),
                     robot.limelight.hasTarget() ? 1 : 0,
                     robot.limelight.getTx(),

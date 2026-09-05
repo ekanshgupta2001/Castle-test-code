@@ -76,7 +76,8 @@ Two things are unfinished, and everything path-related depends on them:
 
 1. **`pedro/Constants.java` is default-constructed.** No drivetrain, no localizer, no tuned
    gains. Pedro cannot follow a path until this is filled in and the tuning procedure is run.
-2. **`util/field/FieldConstants.java` holds placeholder coordinates.** The alliance-mirroring math is real
+2. **`game/FieldPoses.java` holds placeholder coordinates.** The alliance-mirroring math in
+   `util/field/FieldConstants` is real
    and tested; the numbers are guesses. Measure the field and replace them.
 
 Teleop driving, the intake, vision detection, and `SelfTest` all work without either.
@@ -96,6 +97,7 @@ Teleop driving, the intake, vision detection, and `SelfTest` all work without ei
   device gets renamed in the configuration app the morning of a competition.
 - **Nothing runs every loop unless it has to.** Telemetry transmission, dashboard drawing and the
   battery sample are all rate-limited. The control loop should not pay full price for a display.
-- **One idea, one home.** Field size lives in `FieldConstants`, config names in `HardwareNames`,
+- **One idea, one home.** Field size lives in `FieldConstants`, the season's poses and game piece in
+  `game/`, config names in `HardwareNames`,
   bindings in `Controls`, the match lifecycle in `MatchOpMode`. If you are about to write something
   that already exists somewhere else, wire the two together instead.

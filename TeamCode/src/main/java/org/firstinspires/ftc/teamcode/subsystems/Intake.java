@@ -74,7 +74,7 @@ public class Intake {
     private final Clock clock;
     private double targetVelocity = 0;
     private Mode mode = Mode.IDLE;
-    private boolean hasPollen = false;
+    private boolean hasPiece = false;
     private BooleanSupplier capturedSupplier = () -> false;
 
     /** The stall/un-jam state machine. Lives in {@code util/} so it can be unit tested. */
@@ -163,16 +163,16 @@ public class Intake {
         return mode;
     }
 
-    public boolean hasPollen() {
-        return hasPollen;
+    public boolean hasPiece() {
+        return hasPiece;
     }
 
     public void markCaptured() {
-        hasPollen = true;
+        hasPiece = true;
     }
 
     public void markEmpty() {
-        hasPollen = false;
+        hasPiece = false;
     }
 
     public double getCurrentAmps() {
@@ -213,8 +213,8 @@ public class Intake {
         if (motor == null) return;
         long now = clock.nowMs();
 
-        if (mode == Mode.INTAKING && !hasPollen && capturedSupplier.getAsBoolean()) {
-            hasPollen = true;
+        if (mode == Mode.INTAKING && !hasPiece && capturedSupplier.getAsBoolean()) {
+            hasPiece = true;
         }
 
         // Pushed in every loop so live dashboard edits reach the detector.
@@ -316,7 +316,7 @@ public class Intake {
     public Command defaultIdleCommand() {
         return Command.build()
                 .setExecute(() -> {
-                    if (hasPollen) hold();
+                    if (hasPiece) hold();
                     else stop();
                 })
                 .setDone(() -> false)

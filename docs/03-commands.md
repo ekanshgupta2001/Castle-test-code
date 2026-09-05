@@ -48,14 +48,14 @@ Every part is optional. Two rules worth internalising:
 
 ```java
 race(
-    waitUntil(limelight::hasStablePollen),   // the thing we want
+    waitUntil(limelight::hasStableBlob),   // the thing we want
     waitMs(SEARCH_TIMEOUT_MS)                // the thing that saves us
 )
 ```
 
 **Every wait in this repo has a timeout.** An unbounded `waitUntil` whose condition never comes true
 holds its subsystems forever, which silently disables the default commands for the rest of the match.
-`collectPollen` had exactly that bug: if no game piece was ever visible, the intake was locked out
+`collectPiece` had exactly that bug: if no game piece was ever visible, the intake was locked out
 permanently and nothing said why.
 
 `deadline` is subtler. The *first* argument is the timekeeper; the rest are cancelled the moment it
@@ -63,7 +63,7 @@ finishes:
 
 ```java
 deadline(
-    drivetrain.followLazyCommand(this::buildPollenPath, false),  // decides when we're done
+    drivetrain.followLazyCommand(this::buildApproachPath, false),  // decides when we're done
     intake.captureAndHoldCommand()                               // runs alongside, then cancelled
 )
 ```
@@ -81,7 +81,7 @@ This is the mechanism behind **default commands**:
 ```java
 public Command defaultIdleCommand() {
     return Command.build()
-            .setExecute(() -> { if (hasPollen) hold(); else stop(); })
+            .setExecute(() -> { if (hasPiece) hold(); else stop(); })
             .setDone(() -> false)
             .setPriority(-1)                                     // lower than anything else
             .setInterruptedBehavior(InterruptedBehavior.SUSPEND) // park, don't die
@@ -107,7 +107,7 @@ Three details worth knowing, each of which was a real bug here:
 `Drivetrain.driverControlCommand()` is a default command exactly like the one above — it reads the
 sticks in `setExecute` and requires the drivetrain.
 
-That is what makes macros cancellable for free. Scheduling `collectPollen()` — which requires the
+That is what makes macros cancellable for free. Scheduling `collectPiece()` — which requires the
 drivetrain — suspends driver control. When the macro ends or is cancelled, driver control resumes by
 itself. There is no "am I in a macro?" flag for the loop to get wrong.
 

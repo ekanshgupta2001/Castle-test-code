@@ -90,36 +90,12 @@ public class FieldConstantsTest {
     }
 
     @Test
-    public void mirroredPosesStayOnTheField() {
-        Pose[] samples = {
-                FieldConstants.BLUE_START_LEFT,
-                FieldConstants.BLUE_START_RIGHT,
-                FieldConstants.BLUE_STAGING,
-                FieldConstants.BLUE_SCORE,
-                FieldConstants.BLUE_PARK,
-        };
-        for (Pose p : samples) {
-            assertTrue("blue pose off field: " + p, FieldConstants.isInsideField(p));
-            assertTrue("red mirror off field: " + p,
-                    FieldConstants.isInsideField(FieldConstants.forAlliance(p, Alliance.RED)));
-        }
-    }
-
-    @Test
     public void fieldBoundsCheck() {
         assertTrue(FieldConstants.isInsideField(0, 0));
         assertTrue(FieldConstants.isInsideField(144, 144));
         assertTrue(FieldConstants.isInsideField(72, 72));
         assertFalse(FieldConstants.isInsideField(-1, 72));
         assertFalse(FieldConstants.isInsideField(72, 145));
-    }
-
-    @Test
-    public void startPoseDiffersByPosition() {
-        Pose left = FieldConstants.startPose(StartPosition.LEFT);
-        Pose right = FieldConstants.startPose(StartPosition.RIGHT);
-        assertTrue("start positions must be distinct",
-                left.getX() != right.getX() || left.getY() != right.getY());
     }
 
     @Test

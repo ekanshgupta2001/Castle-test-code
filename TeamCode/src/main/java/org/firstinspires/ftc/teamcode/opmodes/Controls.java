@@ -2,6 +2,8 @@ package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.qualcomm.robotcore.hardware.Gamepad;
 
+import org.firstinspires.ftc.teamcode.game.Pollen;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
@@ -34,9 +36,9 @@ public enum Controls {
     RESET_HEADING(Pad.DRIVER, "Y", "re-zero field heading", Gamepad::yWasPressed),
     ABORT(Pad.DRIVER, "BACK", "abort macro (or just move a stick)", Gamepad::backWasPressed),
 
-    COLLECT(Pad.DRIVER, "A", "collect pollen", Gamepad::aWasPressed),
-    ALIGN_SERVO(Pad.DRIVER, "X", "servo-align to pollen", Gamepad::xWasPressed),
-    ALIGN_PATH(Pad.DRIVER, "B", "path-align to pollen", Gamepad::bWasPressed),
+    COLLECT(Pad.DRIVER, "A", "collect " + Pollen.NAME, Gamepad::aWasPressed),
+    ALIGN_SERVO(Pad.DRIVER, "X", "servo-align to " + Pollen.NAME, Gamepad::xWasPressed),
+    ALIGN_PATH(Pad.DRIVER, "B", "path-align to " + Pollen.NAME, Gamepad::bWasPressed),
     RELOCALIZE(Pad.DRIVER, "RB", "relocalize from AprilTag", Gamepad::rightBumperWasPressed),
 
     SNAP_90(Pad.DRIVER, "dpad up", "snap to 90 deg", Gamepad::dpadUpWasPressed),

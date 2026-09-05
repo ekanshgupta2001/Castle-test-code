@@ -4,7 +4,7 @@ import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
-import org.firstinspires.ftc.teamcode.opmodes.AutoSelector;
+import org.firstinspires.ftc.teamcode.game.FieldPoses;
 import org.firstinspires.ftc.teamcode.util.time.MatchClock;
 import org.firstinspires.ftc.teamcode.util.diagnostics.Drawing;
 import org.firstinspires.ftc.teamcode.util.field.Alliance;
@@ -65,7 +65,7 @@ public class MainAuto extends MatchOpMode {
 
         // Seed the pose from the chosen start position so the first path begins from the right
         // place. An AprilTag fix, if one is visible, is more trustworthy and overrides it.
-        Pose start = FieldConstants.forAlliance(FieldConstants.startPose(startPosition), alliance);
+        Pose start = FieldConstants.forAlliance(FieldPoses.startPose(startPosition), alliance);
         robot.drivetrain.setStartingPose(start);
         boolean sawTag = robot.tryLocalizeFromAprilTag();
 
@@ -132,7 +132,7 @@ public class MainAuto extends MatchOpMode {
         telemetry.addData("Pose", robot.drivetrain.getPose());
         telemetry.addData("Localization", robot.poseFusion.getStatus());
         telemetry.addData("Following path?", robot.drivetrain.isFollowingPath());
-        telemetry.addData("hasPollen?", robot.intake.hasPollen());
+        telemetry.addData("hasPiece?", robot.intake.hasPiece());
     }
 
     @Override

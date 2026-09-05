@@ -83,7 +83,7 @@ public class ConceptCommands extends OpMode {
         telemetry.addData("Last scheduled", lastAction);
         telemetry.addData("Instant count", instantCount);
         telemetry.addData("Intake mode", robot.intake.getMode());
-        telemetry.addData("hasPollen?", robot.intake.hasPollen());
+        telemetry.addData("hasPiece?", robot.intake.hasPiece());
     }
 
     @Override
@@ -132,7 +132,7 @@ public class ConceptCommands extends OpMode {
         // This is how every timeout in this codebase is built: race(work, waitMs(limit)).
         if (gamepad1.leftBumperWasPressed()) {
             run("race (2s cap)", race(
-                    waitUntil(() -> robot.intake.hasPollen()),
+                    waitUntil(() -> robot.intake.hasPiece()),
                     waitMs(2000)
             ));
         }
@@ -150,7 +150,7 @@ public class ConceptCommands extends OpMode {
         // Both branches' requirements are claimed up front, so whichever runs owns the intake.
         if (gamepad1.dpadUpWasPressed()) {
             run("conditional", conditional(
-                    () -> robot.intake.hasPollen(),
+                    () -> robot.intake.hasPiece(),
                     robot.intake.runForMs(Intake.EJECT_TICKS_PER_SEC, BURST_MS),
                     robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, BURST_MS)));
         }
@@ -169,7 +169,7 @@ public class ConceptCommands extends OpMode {
         // first tick. AutoRoutine.skipIfAnyLegMissed is the real use of this.
         if (gamepad1.dpadLeftWasPressed()) {
             run("conditional skip", conditional(
-                    () -> robot.intake.hasPollen(),
+                    () -> robot.intake.hasPiece(),
                     instant(() -> lastAction = "skipped: already carrying"),
                     robot.intake.runForMs(Intake.INTAKE_TICKS_PER_SEC, 800)));
         }

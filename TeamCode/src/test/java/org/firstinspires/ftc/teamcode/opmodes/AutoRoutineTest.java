@@ -117,7 +117,7 @@ public class AutoRoutineTest {
         assertEquals(Arrays.asList("staging : MISSED", "park : MISSED"), auto.getLegLog());
         assertEquals(2, auto.getMissedLegs());
         assertEquals("the score block never ran", 0, motor.minCommandedVelocity, 1e-9);
-        assertTrue("still believed to be carrying", robot.intake.hasPollen());
+        assertTrue("still believed to be carrying", robot.intake.hasPiece());
         assertEquals("MISSED park", auto.getCurrentLeg());
     }
 
@@ -131,7 +131,7 @@ public class AutoRoutineTest {
         assertEquals(Arrays.asList("staging : ok", "score : ok", "park : ok"), auto.getLegLog());
         assertEquals(0, auto.getMissedLegs());
         assertEquals("ejected", Intake.OUTTAKE_TICKS_PER_SEC, motor.minCommandedVelocity, 1e-9);
-        assertFalse("markEmpty ran after the eject", robot.intake.hasPollen());
+        assertFalse("markEmpty ran after the eject", robot.intake.hasPiece());
     }
 
     @Test

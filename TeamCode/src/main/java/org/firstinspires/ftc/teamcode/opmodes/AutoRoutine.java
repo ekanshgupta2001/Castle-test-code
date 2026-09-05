@@ -14,6 +14,7 @@ import com.pedropathing.ivy.Command;
 import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.game.FieldPoses;
 import org.firstinspires.ftc.teamcode.subsystems.Intake;
 import org.firstinspires.ftc.teamcode.util.field.Alliance;
 import org.firstinspires.ftc.teamcode.util.field.FieldConstants;
@@ -61,7 +62,7 @@ import java.util.List;
  *
  * <h2>Before this can run on a robot</h2>
  * {@code pedro/Constants.java} is still default-constructed — no drivetrain, no localizer —
- * so the follower cannot move a real robot yet. The poses in {@link FieldConstants} are placeholders
+ * so the follower cannot move a real robot yet. The poses in {@link FieldPoses} are placeholders
  * too. Both must be filled in before this does anything useful on the field.
  */
 @Configurable
@@ -111,13 +112,13 @@ public final class AutoRoutine {
     }
 
     /**
-     * The routine. Poses come from {@link FieldConstants} and are mirrored for the alliance, so
+     * The routine. Poses come from {@link FieldPoses} and are mirrored for the alliance, so
      * there is exactly one copy of each location. Build it once, after the alliance is known.
      */
     public Command build() {
-        Pose staging = alliancePose(FieldConstants.BLUE_STAGING);
-        Pose score = alliancePose(FieldConstants.BLUE_SCORE);
-        Pose park = alliancePose(FieldConstants.BLUE_PARK);
+        Pose staging = alliancePose(FieldPoses.BLUE_STAGING);
+        Pose score = alliancePose(FieldPoses.BLUE_SCORE);
+        Pose park = alliancePose(FieldPoses.BLUE_PARK);
 
         return sequential(
                 // Leg 1: drive to staging, spinning the intake up part way rather than on arrival.

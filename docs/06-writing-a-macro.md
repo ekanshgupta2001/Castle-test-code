@@ -17,14 +17,14 @@ Every wait is wrapped in a timeout:
 
 ```java
 race(
-    waitUntil(robot.limelight::hasStablePollen),
+    waitUntil(robot.limelight::hasStableBlob),
     waitMs(SEARCH_TIMEOUT_MS)
 )
 ```
 
 An unbounded `waitUntil` whose condition never becomes true holds its subsystems **forever**. The
 default commands stay suspended, the intake stops responding, and nothing on the screen says why. The
-original `collectPollen` did exactly this whenever no game piece was visible.
+original `collectPiece` did exactly this whenever no game piece was visible.
 
 ### 2. Reports an outcome
 
@@ -32,15 +32,15 @@ original `collectPollen` did exactly this whenever no game piece was visible.
 finish(Outcome.SUCCESS, Outcome.TIMED_OUT, this::capturedSomethingNew)
 ```
 
-`getStatus()` shows up in telemetry as `collectPollen : TIMED_OUT`. A macro that fails silently is
+`getStatus()` shows up in telemetry as `collectPiece : TIMED_OUT`. A macro that fails silently is
 worse than one that does nothing, because the drivers keep trusting it.
 
-Be careful what "success" means. `collectPollen` originally succeeded when the *path* finished — so a
+Be careful what "success" means. `collectPiece` originally succeeded when the *path* finished — so a
 run that drove perfectly and picked up nothing reported success. It now requires a **new** capture:
 
 ```java
 private boolean capturedSomethingNew() {
-    return robot.intake.hasPollen() && !hadPollenAtStart;
+    return robot.intake.hasPiece() && !hadPieceAtStart;
 }
 ```
 
@@ -60,7 +60,7 @@ by touching a stick.
 ### 4. Builds vision paths lazily
 
 ```java
-robot.drivetrain.followLazyCommand(this::buildPollenPath, false)
+robot.drivetrain.followLazyCommand(this::buildApproachPath, false)
 ```
 
 A `PathChain` caches its endpoints on first use, so a stored chain drives to a stale target. The
@@ -69,23 +69,23 @@ somewhere arbitrary.
 
 ## A worked example
 
-`collectPollen()`, annotated:
+`collectPiece()`, annotated:
 
 ```java
 return sequential(
-    begin("collectPollen"),                                  // set status for telemetry
-    instant(() -> hadPollenAtStart = robot.intake.hasPollen()),  // snapshot for rule 2
-    instant(robot.limelight::activatePollenPipeline),
+    begin("collectPiece"),                                  // set status for telemetry
+    instant(() -> hadPieceAtStart = robot.intake.hasPiece()),  // snapshot for rule 2
+    instant(robot.limelight::activateBlobPipeline),
     waitMs(PIPELINE_WARMUP_MS),                              // the camera needs a few frames
 
     race(                                                    // rule 1: bounded search
-        waitUntil(robot.limelight::hasStablePollen),         // stable, not just "seen"
+        waitUntil(robot.limelight::hasStableBlob),         // stable, not just "seen"
         waitMs(SEARCH_TIMEOUT_MS)
     ),
 
     race(                                                    // rule 1 again
         deadline(
-            robot.drivetrain.followLazyCommand(this::buildPollenPath, false),  // rule 4
+            robot.drivetrain.followLazyCommand(this::buildApproachPath, false),  // rule 4
             robot.intake.captureAndHoldCommand()             // runs alongside the drive
         ),
         waitUntil(this::capturedSomethingNew),               // stop early on a real capture
@@ -104,8 +104,8 @@ when the path ends the intake command is cancelled and its `setEnd` stops the mo
 
 | Macro | How it works | Use when |
 |---|---|---|
-| `alignToPollen()` | Plans a path to a computed heading | You want the follower's tuned motion profile |
-| `servoAlignToPollen()` | Closed loop on raw `tx` | You need accuracy the pose estimate cannot give |
+| `alignToPiece()` | Plans a path to a computed heading | You want the follower's tuned motion profile |
+| `servoAlignToPiece()` | Closed loop on raw `tx` | You need accuracy the pose estimate cannot give |
 
 The path version is only as good as your localization and mount calibration. The servo version
 watches the actual camera error and converges regardless of either — the right choice for the last
@@ -147,7 +147,7 @@ Nothing in `Macros` mentions a field coordinate. Everything is relative to what 
 sees, so it works regardless of where the robot is standing.
 
 Scoring routines that depend on knowing *where things are* belong in a separate class built on
-`FieldConstants`, once the field is measured. Keeping that split means the macro engine stays useful
+`game/FieldPoses`, once the field is measured. Keeping that split means the macro engine stays useful
 even when the game changes.
 
 ---
