@@ -79,12 +79,21 @@ Use the command wrappers rather than calling the follower directly:
 drivetrain.followPathCommand(chain, /* holdEnd = */ true)
 ```
 
-`holdEnd` keeps the follower actively holding the final pose — worth it when something might push the
-robot, costly if you want to hand control straight back.
+`holdEnd` decides what happens when the path finishes on its own. Pedro clears `isBusy` the
+moment the end-of-path hold begins, so the *command* completes then either way. With `holdEnd =
+true` the follower is **left station-keeping** at the target; the hold is released by the next
+path, by `cancelPath()`, or, in teleop, the moment driver control resumes. With `holdEnd = false`
+the wrapper calls `cancelPath()` and control goes straight back to the driver. Use `true` when
+something might push the robot (a scoring pose in auto), `false` when you want the sticks back
+immediately.
+
+An earlier version called `cancelPath()` on *every* end, which silently made `holdEnd` a no-op: the
+robot was free-wheeling at the score pose while the intake ejected. `Drivetrain.followLazyCommand`
+now checks the `EndCondition` and only cancels on interruption or when not asked to hold.
 
 These wrappers do two things a raw `followPath` does not: they `requiring(drivetrain)`, so driver
-control is suspended for the duration, and they `setEnd(ec -> cancelPath())`, so an interrupted
-command actually stops the robot.
+control is suspended for the duration, and their `setEnd` hands control back whenever the command
+is interrupted, so a cancelled command actually stops the robot.
 
 **Two wrappers, and the difference matters:**
 

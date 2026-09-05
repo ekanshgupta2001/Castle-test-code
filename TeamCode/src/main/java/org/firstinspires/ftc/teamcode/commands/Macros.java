@@ -261,7 +261,16 @@ public class Macros {
         return Math.abs(errorDegrees) <= SNAP_TOLERANCE_DEGREES;
     }
 
-    /** Switches to AprilTags and corrects the pose estimate, if a trustworthy fix is available. */
+    /**
+     * Switches to AprilTags and corrects the pose estimate, if a trustworthy fix is available.
+     *
+     * <p>Holds the drivetrain like every other macro, even though it never drives. Two reasons:
+     * the fix is hard-set into the follower, which is only sensible with the robot stationary, and
+     * suspending driver control is what releases the heading hold cleanly. Before this
+     * requirement existed the macro ran underneath driver control, and a new heading from the tag
+     * left the heading hold chasing the old one, spinning the robot. Driver control is suspended
+     * for at most {@link #PIPELINE_WARMUP_MS} plus {@link #RELOCALIZE_TIMEOUT_MS}.
+     */
     public Command relocalize() {
         return sequential(
                 begin("relocalize"),
@@ -271,7 +280,7 @@ public class Macros {
                         waitUntil(() -> robot.limelight.getBotposeAsPedroPose() != null),
                         waitMs(RELOCALIZE_TIMEOUT_MS)
                 ),
-                instant(robot::tryLocalizeFromAprilTag),
+                instant(robot::tryLocalizeFromAprilTag).requiring(robot.drivetrain),
                 finish(Outcome.SUCCESS, Outcome.NO_TARGET,
                         () -> robot.limelight.getBotposeAsPedroPose() != null)
         );

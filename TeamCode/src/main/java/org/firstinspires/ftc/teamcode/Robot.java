@@ -240,8 +240,11 @@ public class Robot {
     /**
      * Attempts a one-shot AprilTag relocalisation, hard-setting the pose. Returns whether it worked.
      *
-     * <p>For init only, when there is no prior estimate worth preserving. During a match use
-     * {@link #updateLocalization()} instead, which blends rather than teleports.
+     * <p>For init, when there is no prior estimate worth preserving, and for the driver's explicit
+     * relocalize macro, which holds the drivetrain so the robot is stationary. For continuous
+     * correction during a match use {@link #updateLocalization()}, which blends rather than
+     * teleports. Hard-setting the pose also releases the drivetrain's heading hold, so the hold
+     * cannot chase the heading that was just replaced.
      *
      * <p>Only succeeds on the AprilTag pipeline with at least one tag in view — {@link Limelight}
      * enforces both, because a default all-zeros botpose would otherwise teleport us to field centre.

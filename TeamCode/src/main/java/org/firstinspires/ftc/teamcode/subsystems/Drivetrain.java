@@ -1,5 +1,8 @@
 package org.firstinspires.ftc.teamcode.subsystems;
 
+import static com.pedropathing.ivy.commands.Commands.instant;
+import static com.pedropathing.ivy.groups.Groups.sequential;
+
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.control.PIDFCoefficients;
 import com.pedropathing.control.PIDFController;
@@ -7,6 +10,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.ivy.Command;
 import com.pedropathing.ivy.behaviors.BlockedBehavior;
+import com.pedropathing.ivy.behaviors.EndCondition;
 import com.pedropathing.ivy.behaviors.InterruptedBehavior;
 import com.pedropathing.ivy.pedro.PedroCommands;
 import com.pedropathing.paths.PathChain;
@@ -143,11 +147,19 @@ public class Drivetrain {
      */
     public void setStartingPose(Pose pose) {
         if (follower != null && pose != null) follower.setStartingPose(pose);
+        releaseHeadingHold();
     }
 
-    /** Corrects the live pose estimate, e.g. from an AprilTag fix. */
+    /**
+     * Corrects the live pose estimate, e.g. from an AprilTag fix.
+     *
+     * <p>Also drops the held heading. The hold's setpoint was captured in the old heading frame;
+     * keeping it after the frame changes makes the controller chase a number that no longer means
+     * anything, and the robot rotates by the size of the correction.
+     */
     public void setPose(Pose pose) {
         if (follower != null && pose != null) follower.setPose(pose);
+        releaseHeadingHold();
     }
 
     public Pose getPose() {
@@ -164,7 +176,13 @@ public class Drivetrain {
         follower.followPath(path, holdEnd);
     }
 
-    /** True while a path is actively being followed. Stick input is ignored during this. */
+    /**
+     * True while a path is actively being followed. Stick input is ignored during this.
+     *
+     * <p>False while the follower is merely <em>holding</em> a pose after a path that asked for
+     * {@code holdEnd}: Pedro clears {@code isBusy} the moment the hold begins. Driver control
+     * treats that as "free to drive" and re-engages teleop, which releases the hold.
+     */
     public boolean isFollowingPath() {
         return follower != null && follower.isBusy();
     }
@@ -178,8 +196,10 @@ public class Drivetrain {
      */
     public void cancelPath() {
         if (follower == null) return;
-        follower.breakFollowing();
-        follower.startTeleopDrive();
+        // startTeleopDrive() breaks following itself. Going through startTeleop() keeps the
+        // teleopEngaged flag truthful, so driver control does not call startTeleopDrive() a
+        // second time on its next tick and double-tick the follower.
+        startTeleop();
     }
 
     /**
@@ -192,7 +212,9 @@ public class Drivetrain {
         if (follower == null) return;
         Pose p = follower.getPose();
         if (p == null) return;
-        follower.setPose(new Pose(p.getX(), p.getY(), 0));
+        // setPose() releases the heading hold. Without that, the hold would still be aiming at the
+        // heading this call just discarded and would spin the robot back toward it.
+        setPose(new Pose(p.getX(), p.getY(), 0));
     }
 
     public void setMaxPower(double power) {
@@ -304,18 +326,12 @@ public class Drivetrain {
     }
 
     /**
-     * Follows a pre-built path.
-     *
-     * <p>The {@code setEnd} is the important part: an interrupted command must also stop the
-     * follower, because once handed a path the follower drives itself and would otherwise carry on
-     * to its target with the sticks locked out.
+     * Follows a pre-built path. Same guarantees as {@link #followLazyCommand}, for a chain whose
+     * endpoints are fixed and known in advance.
      */
     public Command followPathCommand(PathChain path, boolean holdEnd) {
         if (follower == null || path == null) return Command.build().setDone(() -> true);
-        teleopEngaged = false;
-        return PedroCommands.follow(follower, path, holdEnd)
-                .setEnd(ec -> cancelPath())
-                .requiring(this);
+        return followLazyCommand(() -> path, holdEnd);
     }
 
     /**
@@ -327,6 +343,15 @@ public class Drivetrain {
      *
      * <p>A supplier returning {@code null} — no valid target — yields a command that finishes
      * immediately rather than moving the robot somewhere arbitrary.
+     *
+     * <h3>What {@code holdEnd} actually does</h3>
+     * Pedro clears {@code isBusy} the moment the end-of-path hold begins, so the command completes
+     * then. With {@code holdEnd = true} the follower is <em>left station-keeping</em> at the target
+     * when the command ends naturally; the hold is released by the next path, by
+     * {@link #cancelPath()}, or, in teleop, the moment driver control resumes. With
+     * {@code holdEnd = false}, or whenever the command is interrupted, {@code cancelPath()} runs
+     * and control goes straight back to the driver. An earlier version cancelled on every end,
+     * which made the parameter a no-op.
      */
     public Command followLazyCommand(Supplier<PathChain> pathSupplier, boolean holdEnd) {
         // Boxed so the lambdas below share one instance of each; the command may be built once and
@@ -348,23 +373,45 @@ public class Drivetrain {
                     if (System.currentTimeMillis() - startedAt[0] < MIN_PATH_MS) return false;
                     return !isFollowingPath();
                 })
-                .setEnd(ec -> cancelPath())
+                .setEnd(ec -> {
+                    // A natural end while asked to hold leaves the follower holding. Everything
+                    // else - interrupted, suspended, or a path that was not asked to hold - hands
+                    // control back, because a follower left in path mode keeps driving itself.
+                    if (ec != EndCondition.NATURALLY || !holdEnd) cancelPath();
+                })
                 .requiring(this);
     }
 
+    /**
+     * Turns in place to an absolute field heading, then hands control back to the driver.
+     *
+     * <p>Wrapped in a {@code sequential} so the teleop flag is cleared when the command
+     * <em>starts</em>, not when it is built - building a command must not change robot state.
+     */
     public Command turnToCommand(double headingRadians) {
         if (follower == null) return Command.build().setDone(() -> true);
-        teleopEngaged = false;
-        return PedroCommands.turnTo(follower, headingRadians)
-                .setEnd(ec -> cancelPath())
-                .requiring(this);
+        return sequential(
+                instant(() -> teleopEngaged = false),
+                PedroCommands.turnTo(follower, headingRadians).setEnd(ec -> cancelPath())
+        ).requiring(this);
     }
 
-    /** Holds the current position against pushing. */
+    /**
+     * Holds the current position against pushing until interrupted.
+     *
+     * <p>Deliberately never finishes on its own: "hold" means "until something else wants the
+     * drivetrain". Pedro's own hold command completes as soon as the error is within tolerance,
+     * which for a robot already sitting still is immediately.
+     */
     public Command holdCommand() {
         if (follower == null) return Command.build().setDone(() -> true);
-        teleopEngaged = false;
-        return PedroCommands.hold(follower)
+        return Command.build()
+                .setStart(() -> {
+                    teleopEngaged = false;
+                    Pose here = follower.getPose();
+                    if (here != null) follower.holdPoint(here);
+                })
+                .setDone(() -> false)
                 .setEnd(ec -> cancelPath())
                 .requiring(this);
     }

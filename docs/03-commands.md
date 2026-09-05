@@ -113,8 +113,15 @@ itself. There is no "am I in a macro?" flag for the loop to get wrong.
 
 **The one thing Ivy cannot do for you:** stop the Pedro follower. Once handed a path, the follower
 drives itself; cancelling the command only releases the *resource*. That is why every path command
-carries `setEnd(ec -> cancelPath())`. Forgetting it means a cancelled macro keeps driving into a wall
-while the driver's sticks do nothing.
+calls `cancelPath()` from its `setEnd` whenever it is interrupted (and on a natural end too, unless
+it was asked to hold the final pose — see lesson 4). Forgetting it means a cancelled macro keeps
+driving into a wall while the driver's sticks do nothing.
+
+**The mirror-image trap:** a default command owns its subsystem whenever nothing else does, and it
+re-asserts its wishes every loop. Calling `robot.intake.intake()` from an `instant(...)` that does
+not `requiring(intake)` is overwritten by the idle command before the motor is written. Go through
+the subsystem's command factories, or make the enclosing group `requiring(...)` the subsystem
+explicitly, as `MainAuto.buildRoutine()` does. `Concept: Commands` demo 9 shows the failure live.
 
 ## The `unless()` trap
 
