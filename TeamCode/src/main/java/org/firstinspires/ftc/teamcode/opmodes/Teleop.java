@@ -77,9 +77,9 @@ public class Teleop extends MatchOpMode {
         // they resume by themselves when it finishes.
         robot.intake.defaultIdleCommand().schedule();
         robot.drivetrain.driverControlCommand(
-                () -> DriveScaling.shape(-gamepad1.left_stick_y) * slowScale(),
-                () -> DriveScaling.shape(-gamepad1.left_stick_x) * slowScale(),
-                () -> DriveScaling.shape(-gamepad1.right_stick_x) * slowScale()
+                () -> DriveScaling.shape(axis(Controls.DRIVE_FORWARD)) * slowScale(),
+                () -> DriveScaling.shape(axis(Controls.DRIVE_STRAFE)) * slowScale(),
+                () -> DriveScaling.shape(axis(Controls.DRIVE_TURN)) * slowScale()
         ).schedule();
 
         // Inherit where autonomous left off. Without this, teleop starts with an unknown heading
@@ -124,8 +124,12 @@ public class Teleop extends MatchOpMode {
         updateHaptics();
     }
 
+    private double axis(Controls control) {
+        return control.axis(gamepad1, gamepad2);
+    }
+
     private double slowScale() {
-        return DriveScaling.slowScale(gamepad1.left_trigger);
+        return DriveScaling.slowScale(axis(Controls.SLOW_MODE));
     }
 
     // ---- Input ----
@@ -218,9 +222,9 @@ public class Teleop extends MatchOpMode {
     }
 
     private boolean driverWantsControl() {
-        return Math.abs(gamepad1.left_stick_y) > MACRO_ABORT_STICK
-                || Math.abs(gamepad1.left_stick_x) > MACRO_ABORT_STICK
-                || Math.abs(gamepad1.right_stick_x) > MACRO_ABORT_STICK;
+        return Math.abs(axis(Controls.DRIVE_FORWARD)) > MACRO_ABORT_STICK
+                || Math.abs(axis(Controls.DRIVE_STRAFE)) > MACRO_ABORT_STICK
+                || Math.abs(axis(Controls.DRIVE_TURN)) > MACRO_ABORT_STICK;
     }
 
     private void abortMacro() {

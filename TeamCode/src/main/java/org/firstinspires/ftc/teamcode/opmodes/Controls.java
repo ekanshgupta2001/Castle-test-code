@@ -7,6 +7,7 @@ import org.firstinspires.ftc.teamcode.game.Pollen;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
 
 /**
  * Every gamepad binding, and the help card that describes them, from one definition.
@@ -22,43 +23,47 @@ import java.util.function.Predicate;
  *
  * <h2>Adding a control</h2>
  * Add an entry. It appears on the help card automatically; wire it in {@code Teleop} with
- * {@code CONTROL.wasPressed(gamepad1, gamepad2)}. Order here is the order shown on the card, so
- * group related actions together.
+ * {@code CONTROL.wasPressed(gamepad1, gamepad2)} for a button or
+ * {@code CONTROL.axis(gamepad1, gamepad2)} for a stick or trigger. Order here is the order shown on
+ * the card, so group related actions together.
  *
- * <p>Analog inputs (sticks, triggers) are listed with a {@code null} test — they are documented
- * here but read directly, because there is no edge to detect.
+ * <p>Analog controls carry an axis function instead of an edge test. Sign conventions live in that
+ * function — the SDK reports stick-up as negative, so {@link #DRIVE_FORWARD} negates it and every
+ * caller gets "forward is positive" without remembering why.
  */
 public enum Controls {
     // ---- Driver (gamepad 1): anything that moves the robot ----
-    DRIVE(Pad.DRIVER, "sticks", "drive", null),
-    SLOW_MODE(Pad.DRIVER, "L-trigger", "precision slow mode", null),
-    TOGGLE_DRIVE_FRAME(Pad.DRIVER, "options", "field / robot centric", Gamepad::optionsWasPressed),
-    RESET_HEADING(Pad.DRIVER, "Y", "re-zero field heading", Gamepad::yWasPressed),
-    ABORT(Pad.DRIVER, "BACK", "abort macro (or just move a stick)", Gamepad::backWasPressed),
+    DRIVE_FORWARD(Pad.DRIVER, "L-stick up", "drive forward", null, gp -> -gp.left_stick_y),
+    DRIVE_STRAFE(Pad.DRIVER, "L-stick left", "strafe left", null, gp -> -gp.left_stick_x),
+    DRIVE_TURN(Pad.DRIVER, "R-stick left", "turn left", null, gp -> -gp.right_stick_x),
+    SLOW_MODE(Pad.DRIVER, "L-trigger", "precision slow mode", null, gp -> gp.left_trigger),
+    TOGGLE_DRIVE_FRAME(Pad.DRIVER, "options", "field / robot centric", Gamepad::optionsWasPressed, null),
+    RESET_HEADING(Pad.DRIVER, "Y", "re-zero field heading", Gamepad::yWasPressed, null),
+    ABORT(Pad.DRIVER, "BACK", "abort macro (or just move a stick)", Gamepad::backWasPressed, null),
 
-    COLLECT(Pad.DRIVER, "A", "collect " + Pollen.NAME, Gamepad::aWasPressed),
-    ALIGN_SERVO(Pad.DRIVER, "X", "servo-align to " + Pollen.NAME, Gamepad::xWasPressed),
-    ALIGN_PATH(Pad.DRIVER, "B", "path-align to " + Pollen.NAME, Gamepad::bWasPressed),
-    RELOCALIZE(Pad.DRIVER, "RB", "relocalize from AprilTag", Gamepad::rightBumperWasPressed),
+    COLLECT(Pad.DRIVER, "A", "collect " + Pollen.NAME, Gamepad::aWasPressed, null),
+    ALIGN_SERVO(Pad.DRIVER, "X", "servo-align to " + Pollen.NAME, Gamepad::xWasPressed, null),
+    ALIGN_PATH(Pad.DRIVER, "B", "path-align to " + Pollen.NAME, Gamepad::bWasPressed, null),
+    RELOCALIZE(Pad.DRIVER, "RB", "relocalize from AprilTag", Gamepad::rightBumperWasPressed, null),
 
-    SNAP_90(Pad.DRIVER, "dpad up", "snap to 90 deg", Gamepad::dpadUpWasPressed),
-    SNAP_0(Pad.DRIVER, "dpad right", "snap to 0 deg", Gamepad::dpadRightWasPressed),
-    SNAP_270(Pad.DRIVER, "dpad down", "snap to 270 deg", Gamepad::dpadDownWasPressed),
-    SNAP_180(Pad.DRIVER, "dpad left", "snap to 180 deg", Gamepad::dpadLeftWasPressed),
+    SNAP_90(Pad.DRIVER, "dpad up", "snap to 90 deg", Gamepad::dpadUpWasPressed, null),
+    SNAP_0(Pad.DRIVER, "dpad right", "snap to 0 deg", Gamepad::dpadRightWasPressed, null),
+    SNAP_270(Pad.DRIVER, "dpad down", "snap to 270 deg", Gamepad::dpadDownWasPressed, null),
+    SNAP_180(Pad.DRIVER, "dpad left", "snap to 180 deg", Gamepad::dpadLeftWasPressed, null),
 
     // ---- Operator (gamepad 2): mechanisms and diagnostics ----
-    INTAKE(Pad.OPERATOR, "RB", "run intake", Gamepad::rightBumperWasPressed),
-    OUTTAKE(Pad.OPERATOR, "LB", "run intake backwards", Gamepad::leftBumperWasPressed),
-    EJECT(Pad.OPERATOR, "B", "eject at full speed", Gamepad::bWasPressed),
-    STOP_INTAKE(Pad.OPERATOR, "X", "stop intake", Gamepad::xWasPressed),
-    CAPTURE_AND_HOLD(Pad.OPERATOR, "Y", "intake until captured, then hold", Gamepad::yWasPressed),
+    INTAKE(Pad.OPERATOR, "RB", "run intake", Gamepad::rightBumperWasPressed, null),
+    OUTTAKE(Pad.OPERATOR, "LB", "run intake backwards", Gamepad::leftBumperWasPressed, null),
+    EJECT(Pad.OPERATOR, "B", "eject at full speed", Gamepad::bWasPressed, null),
+    STOP_INTAKE(Pad.OPERATOR, "X", "stop intake", Gamepad::xWasPressed, null),
+    CAPTURE_AND_HOLD(Pad.OPERATOR, "Y", "intake until captured, then hold", Gamepad::yWasPressed, null),
 
-    LIFT_HIGH(Pad.OPERATOR, "dpad up", "lift to HIGH", Gamepad::dpadUpWasPressed),
-    LIFT_LOW(Pad.OPERATOR, "dpad right", "lift to LOW", Gamepad::dpadRightWasPressed),
-    LIFT_DOWN(Pad.OPERATOR, "dpad down", "lift to DOWN", Gamepad::dpadDownWasPressed),
-    TOGGLE_GRIP(Pad.OPERATOR, "dpad left", "open / close claw", Gamepad::dpadLeftWasPressed),
+    LIFT_HIGH(Pad.OPERATOR, "dpad up", "lift to HIGH", Gamepad::dpadUpWasPressed, null),
+    LIFT_LOW(Pad.OPERATOR, "dpad right", "lift to LOW", Gamepad::dpadRightWasPressed, null),
+    LIFT_DOWN(Pad.OPERATOR, "dpad down", "lift to DOWN", Gamepad::dpadDownWasPressed, null),
+    TOGGLE_GRIP(Pad.OPERATOR, "dpad left", "open / close claw", Gamepad::dpadLeftWasPressed, null),
 
-    TOGGLE_DEBUG(Pad.OPERATOR, "BACK", "toggle debug telemetry", Gamepad::backWasPressed);
+    TOGGLE_DEBUG(Pad.OPERATOR, "BACK", "toggle debug telemetry", Gamepad::backWasPressed, null);
 
     /** Which driver holds this control. */
     public enum Pad { DRIVER, OPERATOR }
@@ -67,12 +72,20 @@ public enum Controls {
     private final String button;
     private final String description;
     private final Predicate<Gamepad> edge;
+    private final ToDoubleFunction<Gamepad> axis;
 
-    Controls(Pad pad, String button, String description, Predicate<Gamepad> edge) {
+    /**
+     * A button carries an {@code edge} test and a null {@code axis}; a stick or trigger the
+     * reverse. One constructor rather than two overloads because an implicitly typed lambda is
+     * ambiguous between {@code Predicate} and {@code ToDoubleFunction} in Java 8.
+     */
+    Controls(Pad pad, String button, String description,
+             Predicate<Gamepad> edge, ToDoubleFunction<Gamepad> axis) {
         this.pad = pad;
         this.button = button;
         this.description = description;
         this.edge = edge;
+        this.axis = axis;
     }
 
     /**
@@ -81,11 +94,25 @@ public enum Controls {
      * <p>Takes both gamepads and picks the right one, so callers never have to remember which pad
      * a control lives on — moving a binding between pads is then a one-line change here.
      *
-     * <p>Always false for analog controls, which are read directly.
+     * <p>Always false for analog controls; read those with {@link #axis}.
      */
     public boolean wasPressed(Gamepad driver, Gamepad operator) {
         if (edge == null) return false;
         return edge.test(pad == Pad.DRIVER ? driver : operator);
+    }
+
+    /**
+     * The current value of a stick or trigger, with the sign convention already applied.
+     *
+     * <p>Always 0 for button controls; read those with {@link #wasPressed}.
+     */
+    public double axis(Gamepad driver, Gamepad operator) {
+        if (axis == null) return 0;
+        return axis.applyAsDouble(pad == Pad.DRIVER ? driver : operator);
+    }
+
+    public boolean isAnalog() {
+        return axis != null;
     }
 
     public Pad pad() {
