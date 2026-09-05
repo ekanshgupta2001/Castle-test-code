@@ -154,10 +154,13 @@ is a one-line change in `Robot`.
 
 ## Adding a subsystem: checklist
 
-1. Look up hardware with `Hardware.get`, and add `isAvailable()`.
+1. Look up hardware with `Hardware.get`, and add `isAvailable()`. Give the class a second
+   constructor that takes the resolved device (and a `util/time/Clock`, if it needs time) so a
+   test can hand it a fake — see `Intake(DcMotorEx, Clock)` and `IntakeCommandTest`.
 2. Store intent in fields; write hardware only in `update()`.
 3. Cache sensor reads in `update()`; return copies of mutable state.
-4. Put any real math in a `util/` class so it can be unit tested.
+4. Put any real math in a `util/` class so it can be unit tested, and never read
+   `System.currentTimeMillis()` directly: take the timestamp from the injected `Clock`.
 5. Expose `*Command()` factories with `requiring(this)` — see lesson 3.
 6. Add it to `Robot` as a `public final` field, and call its `update()` from `readSensors()`
    (sensors) or `writeActuators()` (actuators).

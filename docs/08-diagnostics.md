@@ -35,7 +35,10 @@ clock.getRemainingMs();  // clamped at 0, never counts past the buzzer
 clock.hasTimeFor(4000);  // the hook for a time-aware fallback
 ```
 
-**It never reads the clock itself.** Timestamps are passed in:
+**It never reads the clock itself.** Timestamps are passed in, and on the robot they come from
+`util/time/Clock`, which every subsystem shares. `Clock.system()` is monotonic (`System.nanoTime`),
+not wall-clock time, so a time sync on the Control Hub cannot make a 200 ms dwell take an hour or
+fire early. Tests inject `FakeClock` and advance it by hand:
 
 ```java
 clock.start(System.currentTimeMillis());   // in start()
