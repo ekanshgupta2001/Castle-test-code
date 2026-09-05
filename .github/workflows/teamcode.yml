@@ -1,0 +1,45 @@
+# Builds the robot app and runs the JVM unit tests on every push and pull request.
+#
+# The unit tests are the fast signal (a few seconds); assembleDebug proves the APK still builds.
+# Both run with the same command a developer uses locally, so a green check here means the
+# tree is deployable.
+name: TeamCode
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: teamcode-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew :TeamCode:test --no-daemon --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew :TeamCode:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teamcode-test-reports
+          path: TeamCode/build/reports/tests/
+          if-no-files-found: ignore
